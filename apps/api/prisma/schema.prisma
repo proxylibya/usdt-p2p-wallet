@@ -1,0 +1,568 @@
+// ============================================
+// 🗄️ USDT Wallet - Database Schema
+// ============================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// 👤 USER & AUTH
+// ============================================
+
+model User {
+  id           String  @id @default(uuid())
+  phone        String  @unique
+  email        String? @unique
+  name         String
+  avatarUrl    String?
+  passwordHash String
+
+  // Profile
+  countryCode       String @default("GLOBAL")
+  preferredCurrency String @default("USD")
+  preferredLanguage String @default("en")
+
+  // KYC
+  kycStatus KycStatus @default(NOT_VERIFIED)
+  kycData   Json?
+
+  // Security
+  twoFactorEnabled  Boolean @default(false)
+  twoFactorSecret   String?
+  biometricKey      String?
+  securityQuestions Json?
+
+  // Status
+  isActive  Boolean @default(true)
+  isBanned  Boolean @default(false)
+  banReason String?
+
+  // Timestamps
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  lastLoginAt DateTime?
+
+  // Relations
+  sessions          Session[]
+  wallets           Wallet[]
+  transactions      Transaction[]
+  p2pOffers         P2POffer[]
+  p2pTradesAsBuyer  P2PTrade[]      @relation("BuyerTrades")
+  p2pTradesAsSeller P2PTrade[]      @relation("SellerTrades")
+  notifications     Notification[]
+  addressBook       AddressBook[]
+  paymentMethods    PaymentMethod[]
+  priceAlerts       PriceAlert[]
+  devices           Device[]
+
+  // New Features Relations
+  createdEidya         Eidya[]
+  eidyaClaims          EidyaClaim[]
+  stakingSubscriptions StakingSubscription[]
+
+  @@index([phone])
+  @@index([email])
+  @@index([countryCode])
+  @@map("users")
+}
+
+enum KycStatus {
+  NOT_VERIFIED
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+model Session {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  refreshToken String  @unique
+  deviceInfo   String?
+  ipAddress    String?
+  userAgent    String?
+
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([refreshToken])
+  @@map("sessions")
+}
+
+model Device {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  platform String // ios, android, web
+  token    String @unique // Push notification token
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@map("devices")
+}
+
+// ============================================
+// 💰 WALLET & TRANSACTIONS
+// ============================================
+
+model Wallet {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  asset   String // USDT, USDC, BUSD, DAI
+  network String // TRC20, ERC20, BEP20, SOL
+  address String? // Deposit address
+
+  balance       Decimal @default(0) @db.Decimal(20, 8)
+  lockedBalance Decimal @default(0) @db.Decimal(20, 8) // In escrow
+
+  accountType WalletType @default(SPOT)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, asset, network, accountType])
+  @@index([userId])
+  @@index([asset])
+  @@map("wallets")
+}
+
+enum WalletType {
+  SPOT
+  FUNDING
+}
+
+model Transaction {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type    TransactionType
+  asset   String
+  network String?
+  amount  Decimal         @db.Decimal(20, 8)
+  fee     Decimal         @default(0) @db.Decimal(20, 8)
+
+  status TransactionStatus @default(PENDING)
+
+  // Blockchain data
+  txHash      String?
+  fromAddress String?
+  toAddress   String?
+
+  // P2P reference
+  p2pTradeId String?
+
+  // Metadata
+  metadata Json?
+  note     String?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  completedAt DateTime?
+
+  @@index([userId])
+  @@index([type])
+  @@index([status])
+  @@index([createdAt])
+  @@map("transactions")
+}
+
+enum TransactionType {
+  DEPOSIT
+  WITHDRAW
+  TRANSFER_IN
+  TRANSFER_OUT
+  P2P_BUY
+  P2P_SELL
+  SWAP_IN
+  SWAP_OUT
+  ESCROW_LOCK
+  ESCROW_RELEASE
+  ESCROW_REFUND
+}
+
+enum TransactionStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+// ============================================
+// 🤝 P2P TRADING
+// ============================================
+
+model P2POffer {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type         P2POfferType // BUY or SELL
+  asset        String // USDT, USDC, etc.
+  fiatCurrency String // LYD, USD, EGP, etc.
+  countryCode  String       @default("GLOBAL")
+
+  price     Decimal @db.Decimal(20, 8)
+  available Decimal @db.Decimal(20, 8)
+  minLimit  Decimal @db.Decimal(20, 8)
+  maxLimit  Decimal @db.Decimal(20, 8)
+
+  paymentMethods String[] // Array of method keys
+  paymentDetails Json? // Encrypted payment details
+  terms          String?
+
+  isActive Boolean @default(true)
+
+  // Stats
+  completedTrades Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  trades P2PTrade[]
+
+  @@index([userId])
+  @@index([type])
+  @@index([asset])
+  @@index([fiatCurrency])
+  @@index([countryCode])
+  @@index([isActive])
+  @@map("p2p_offers")
+}
+
+enum P2POfferType {
+  BUY
+  SELL
+}
+
+model P2PTrade {
+  id      String   @id @default(uuid())
+  offerId String
+  offer   P2POffer @relation(fields: [offerId], references: [id])
+
+  buyerId String
+  buyer   User   @relation("BuyerTrades", fields: [buyerId], references: [id])
+
+  sellerId String
+  seller   User   @relation("SellerTrades", fields: [sellerId], references: [id])
+
+  amount     Decimal @db.Decimal(20, 8) // Crypto amount
+  fiatAmount Decimal @db.Decimal(20, 2) // Fiat amount
+  price      Decimal @db.Decimal(20, 8) // Locked price
+
+  status P2PTradeStatus @default(WAITING_PAYMENT)
+
+  // Escrow
+  escrowLocked Boolean @default(false)
+  escrowTxId   String?
+
+  // Dispute
+  disputeReason   String?
+  disputeEvidence String[]
+  disputeResult   String?
+
+  // Timestamps
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  paidAt      DateTime?
+  releasedAt  DateTime?
+  cancelledAt DateTime?
+  expiresAt   DateTime?
+
+  // Chat
+  messages P2PMessage[]
+
+  @@index([offerId])
+  @@index([buyerId])
+  @@index([sellerId])
+  @@index([status])
+  @@map("p2p_trades")
+}
+
+enum P2PTradeStatus {
+  WAITING_PAYMENT
+  PAID
+  RELEASED
+  COMPLETED
+  CANCELLED
+  DISPUTED
+  RESOLVED
+}
+
+model P2PMessage {
+  id      String   @id @default(uuid())
+  tradeId String
+  trade   P2PTrade @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+
+  senderId      String // User ID or 'system'
+  text          String
+  attachmentUrl String?
+  isSystem      Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@index([tradeId])
+  @@map("p2p_messages")
+}
+
+// ============================================
+// 🔔 NOTIFICATIONS
+// ============================================
+
+model Notification {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type    NotificationType
+  title   String
+  message String
+  data    Json?
+
+  isRead Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+enum NotificationType {
+  TRANSACTION
+  P2P_TRADE
+  SECURITY
+  PRICE_ALERT
+  SYSTEM
+  PROMO
+}
+
+// ============================================
+// 📇 USER DATA
+// ============================================
+
+model AddressBook {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  label   String
+  address String
+  asset   String
+  network String
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("address_book")
+}
+
+model PaymentMethod {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  method    String // sadad, bank_transfer, etc.
+  details   Json // Encrypted details
+  isDefault Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@map("payment_methods")
+}
+
+model PriceAlert {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  assetSymbol String
+  targetPrice Decimal @db.Decimal(20, 8)
+  condition   String // 'above' or 'below'
+  isActive    Boolean @default(true)
+  isTriggered Boolean @default(false)
+
+  createdAt   DateTime  @default(now())
+  triggeredAt DateTime?
+
+  @@index([userId])
+  @@index([assetSymbol])
+  @@map("price_alerts")
+}
+
+// ============================================
+// 📊 ADMIN & ANALYTICS
+// ============================================
+
+model AdminUser {
+  id           String @id @default(uuid())
+  email        String @unique
+  passwordHash String
+  name         String
+  role         String @default("admin") // admin, superadmin
+
+  isActive Boolean @default(true)
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  lastLoginAt DateTime?
+
+  @@map("admin_users")
+}
+
+model AuditLog {
+  id String @id @default(uuid())
+
+  userId  String? // User who performed action
+  adminId String? // Admin who performed action
+
+  action    String
+  entity    String
+  entityId  String?
+  oldValue  Json?
+  newValue  Json?
+  ipAddress String?
+  userAgent String?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([adminId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// ============================================
+// 🎁 EIDYA (GIFTING)
+// ============================================
+
+model Eidya {
+  id        String @id @default(uuid())
+  creatorId String
+  creator   User   @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  asset       String
+  totalAmount Decimal @db.Decimal(20, 8)
+  quantity    Int // Number of people
+  message     String?
+  code        String  @unique // The link code
+
+  claimedAmount Decimal @default(0) @db.Decimal(20, 8)
+  claimedCount  Int     @default(0)
+
+  status EidyaStatus @default(ACTIVE)
+
+  createdAt DateTime  @default(now())
+  expiresAt DateTime?
+
+  claims EidyaClaim[]
+
+  @@index([creatorId])
+  @@index([code])
+  @@map("eidya")
+}
+
+model EidyaClaim {
+  id      String @id @default(uuid())
+  eidyaId String
+  eidya   Eidya  @relation(fields: [eidyaId], references: [id], onDelete: Cascade)
+
+  claimerId String
+  claimer   User   @relation(fields: [claimerId], references: [id], onDelete: Cascade)
+
+  amount Decimal @db.Decimal(20, 8)
+
+  createdAt DateTime @default(now())
+
+  @@unique([eidyaId, claimerId]) // One claim per user per eidya
+  @@map("eidya_claims")
+}
+
+enum EidyaStatus {
+  ACTIVE
+  DEPLETED
+  EXPIRED
+}
+
+// ============================================
+// 📈 EARN (STAKING)
+// ============================================
+
+model StakingProduct {
+  id           String   @id @default(uuid())
+  asset        String
+  apy          Decimal  @db.Decimal(5, 2)
+  durationDays Int // 0 for flexible
+  minAmount    Decimal  @db.Decimal(20, 8)
+  maxAmount    Decimal? @db.Decimal(20, 8)
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  subscriptions StakingSubscription[]
+
+  @@map("staking_products")
+}
+
+model StakingSubscription {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  productId String
+  product   StakingProduct @relation(fields: [productId], references: [id])
+
+  amount Decimal @db.Decimal(20, 8)
+
+  startDate  DateTime  @default(now())
+  endDate    DateTime? // Null for flexible
+  redeemedAt DateTime?
+
+  status StakingStatus @default(ACTIVE)
+
+  interestEarned Decimal @default(0) @db.Decimal(20, 8)
+
+  @@index([userId])
+  @@index([status])
+  @@map("staking_subscriptions")
+}
+
+enum StakingStatus {
+  ACTIVE
+  REDEEMED
+  COMPLETED
+}
+
+// ============================================
+// ⚙️ SYSTEM SETTINGS
+// ============================================
+
+model SystemSettings {
+  id        String   @id @default(uuid())
+  key       String   @unique // e.g. 'platform_config'
+  value     Json     // Stores all settings as a JSON object for flexibility
+  updatedBy String?  // Admin ID
+  updatedAt DateTime @updatedAt
+
+  @@map("system_settings")
+}

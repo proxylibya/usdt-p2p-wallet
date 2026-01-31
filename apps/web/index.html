@@ -1,0 +1,167 @@
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    
+    <!-- Mobile Fidelity Meta Tags -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content" />
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="USDT Wallet">
+    <meta name="theme-color" content="#0B0E11">
+    <meta name="format-detection" content="telephone=no">
+    <meta name="mobile-web-app-capable" content="yes">
+
+    <link rel="apple-touch-icon" href="/icons/icon-192x192.svg">
+    <link rel="manifest" href="/manifest.json">
+    
+    <title>USDT Wallet</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&family=Noto+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+      /* --- Native App Reset --- */
+      html {
+        -webkit-tap-highlight-color: transparent;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        height: 100%;
+        width: 100%;
+        background-color: #0B0E11;
+        overflow: hidden; /* Prevent html scroll */
+      }
+
+      body {
+        height: 100%;
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        overflow: hidden; /* Prevent body scroll, handle inside containers */
+        overscroll-behavior-y: none; /* Disable pull-to-refresh globally */
+        touch-action: pan-x pan-y;
+        user-select: none; /* Disable text selection like Native App */
+        -webkit-user-select: none;
+        background-color: #0B0E11;
+      }
+
+      #root {
+        height: 100%;
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+      }
+      
+      /* Re-enable text selection for inputs */
+      input, textarea, [contenteditable="true"] {
+        user-select: text;
+        -webkit-user-select: text;
+      }
+
+      /* Safe Area Variables */
+      :root {
+        --sat: env(safe-area-inset-top);
+        --sab: env(safe-area-inset-bottom);
+        --sal: env(safe-area-inset-left);
+        --sar: env(safe-area-inset-right);
+      }
+
+      .pb-safe { padding-bottom: max(16px, var(--sab)); }
+      .pt-safe { padding-top: max(16px, var(--sat)); }
+      .mb-safe { margin-bottom: max(16px, var(--sab)); }
+      .mt-safe { margin-top: max(0px, var(--sat)); }
+
+      /* Font Handling */
+      html[lang="ar"] body { 
+        font-family: 'Noto Sans Arabic', 'sans-serif' !important; 
+      }
+      
+      /* ARABIC SPECIFIC OVERRIDES */
+      html[lang="ar"] {
+        /* Arabic font looks slightly smaller/thinner than English, bump it up slightly */
+        font-size: 102%; 
+      }
+
+      html[lang="ar"] * {
+        /* Arabic letters connect, letter-spacing breaks readability */
+        letter-spacing: 0 !important; 
+      }
+
+      /* Ensure numbers are always LTR for correct formatting (e.g. +218) */
+      html[lang="ar"] input[type="tel"], 
+      html[lang="ar"] .font-mono {
+        direction: ltr;
+        text-align: right; /* Keep alignment right, but flow LTR */
+      }
+
+      html:not([lang="ar"]) body { font-family: 'Noto Sans', 'sans-serif' !important; }
+
+      /* Custom Scrollbar - Minimalist */
+      ::-webkit-scrollbar { width: 4px; height: 4px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: #2B3139; border-radius: 10px; }
+      ::-webkit-scrollbar-thumb:hover { background: #848E9C; }
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+      /* Animations */
+      @keyframes fadeInDown {
+        from { opacity: 0; transform: translate3d(0, -12px, 0); }
+        to { opacity: 1; transform: translate3d(0, 0, 0); }
+      }
+      .animate-fadeInDown { animation: fadeInDown 0.4s cubic-bezier(0.16, 1, 0.3, 1) both; }
+      
+      @keyframes fadeInUp {
+        from { opacity: 0; transform: translate3d(0, 12px, 0); }
+        to { opacity: 1; transform: translate3d(0, 0, 0); }
+      }
+      .animate-fadeInUp { animation: fadeInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+      @keyframes slideInFromRight {
+        from { opacity: 0; transform: translateX(20px); }
+        to { opacity: 1; transform: translateX(0); }
+      }
+      @keyframes slideInFromLeft {
+        from { opacity: 0; transform: translateX(-20px); }
+        to { opacity: 1; transform: translateX(0); }
+      }
+      
+      html[dir="ltr"] .animate-slideInFromRight { animation: slideInFromRight 0.3s cubic-bezier(0.16, 1, 0.3, 1) both; }
+      html[dir="rtl"] .animate-slideInFromRight { animation: slideInFromLeft 0.3s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+      /* Marquee Animation */
+      @keyframes marquee {
+        0% { transform: translateX(0); }
+        100% { transform: translateX(-50%); }
+      }
+      .animate-marquee {
+        animation: marquee 20s linear infinite;
+        min-width: 100%;
+        width: max-content;
+      }
+
+      .price-flash { transition: color 0.3s ease; }
+      .price-up { color: #0ECB81 !important; }
+      .price-down { color: #F6465D !important; }
+
+      /* Shimmer Effect */
+      @keyframes shimmer {
+        0% { background-position: -200% 0; }
+        100% { background-position: 200% 0; }
+      }
+      .skeleton-shimmer {
+        background: #1E2026;
+        background-image: linear-gradient(to right, #1E2026 0%, #2B3139 20%, #1E2026 40%, #1E2026 100%);
+        background-repeat: no-repeat;
+        background-size: 200% 100%;
+        animation: shimmer 1.5s infinite linear; 
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>

@@ -1,0 +1,478 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  background-color: #0B0E11;
+  color: #EAECEF;
+  min-height: 100vh;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1E2329;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2B3139;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3B4149;
+}
+
+@layer components {
+  /* ============================================
+     Sidebar Navigation with Animations
+     ============================================ */
+  .sidebar-link {
+    @apply flex items-center gap-3 px-4 py-3 rounded-lg text-text-secondary 
+           hover:text-text-primary hover:bg-background-tertiary 
+           transition-all duration-200 ease-out
+           hover:translate-x-1 active:scale-[0.98];
+  }
+  
+  .sidebar-link.active {
+    @apply bg-brand-yellow/10 text-brand-yellow border-r-2 border-brand-yellow;
+  }
+  
+  /* ============================================
+     Animated Stat Cards
+     ============================================ */
+  .stat-card {
+    @apply bg-background-secondary p-6 rounded-xl border border-border-divider 
+           hover:border-brand-yellow/30 transition-all duration-300 ease-out
+           hover:-translate-y-1 hover:shadow-lg hover:shadow-brand-yellow/5;
+  }
+  
+  .stat-card-animated {
+    @apply stat-card;
+    animation: fade-in-up 0.4s ease-out forwards;
+  }
+  
+  /* ============================================
+     Data Tables with Row Animations
+     ============================================ */
+  .data-table {
+    @apply w-full text-sm text-left;
+  }
+  
+  .data-table th {
+    @apply px-4 py-3 text-text-secondary font-semibold uppercase text-xs tracking-wider bg-background-tertiary;
+  }
+  
+  .data-table td {
+    @apply px-4 py-4 border-b border-border-divider transition-all duration-200;
+  }
+  
+  .data-table tr {
+    @apply transition-all duration-200 ease-out;
+  }
+  
+  .data-table tbody tr:hover td {
+    @apply bg-background-tertiary/50;
+  }
+  
+  .data-table tbody tr:hover {
+    @apply translate-x-0.5;
+  }
+  
+  .data-table-animated tbody tr {
+    animation: stagger-in 0.3s ease-out forwards;
+    opacity: 0;
+  }
+  
+  .data-table-animated tbody tr:nth-child(1) { animation-delay: 0ms; }
+  .data-table-animated tbody tr:nth-child(2) { animation-delay: 30ms; }
+  .data-table-animated tbody tr:nth-child(3) { animation-delay: 60ms; }
+  .data-table-animated tbody tr:nth-child(4) { animation-delay: 90ms; }
+  .data-table-animated tbody tr:nth-child(5) { animation-delay: 120ms; }
+  .data-table-animated tbody tr:nth-child(6) { animation-delay: 150ms; }
+  .data-table-animated tbody tr:nth-child(7) { animation-delay: 180ms; }
+  .data-table-animated tbody tr:nth-child(8) { animation-delay: 210ms; }
+  .data-table-animated tbody tr:nth-child(9) { animation-delay: 240ms; }
+  .data-table-animated tbody tr:nth-child(10) { animation-delay: 270ms; }
+  
+  /* ============================================
+     Animated Buttons
+     ============================================ */
+  .btn-primary {
+    @apply px-4 py-2 bg-brand-yellow text-background-primary font-semibold rounded-lg 
+           hover:bg-brand-yellow/90 transition-all duration-200 ease-out
+           hover:shadow-lg hover:shadow-brand-yellow/20
+           active:scale-[0.97] active:shadow-none
+           relative overflow-hidden;
+  }
+  
+  .btn-secondary {
+    @apply px-4 py-2 bg-background-tertiary text-text-primary font-semibold rounded-lg 
+           hover:bg-border-divider transition-all duration-200 ease-out
+           active:scale-[0.97]
+           relative overflow-hidden;
+  }
+  
+  .btn-danger {
+    @apply px-4 py-2 bg-status-error text-white font-semibold rounded-lg 
+           hover:bg-status-error/80 transition-all duration-200 ease-out
+           hover:shadow-lg hover:shadow-status-error/20
+           active:scale-[0.97] active:shadow-none
+           relative overflow-hidden;
+  }
+  
+  .btn-success {
+    @apply px-4 py-2 bg-status-success text-white font-semibold rounded-lg 
+           hover:bg-status-success/80 transition-all duration-200 ease-out
+           hover:shadow-lg hover:shadow-status-success/20
+           active:scale-[0.97] active:shadow-none
+           relative overflow-hidden;
+  }
+  
+  .btn-icon {
+    @apply p-2 rounded-lg transition-all duration-200 ease-out
+           hover:bg-background-tertiary active:scale-90;
+  }
+  
+  /* ============================================
+     Animated Input Fields
+     ============================================ */
+  .input-field {
+    @apply w-full px-4 py-3 bg-background-tertiary border border-border-divider rounded-lg 
+           text-text-primary placeholder-text-disabled 
+           focus:outline-none focus:border-brand-yellow focus:ring-2 focus:ring-brand-yellow/20
+           transition-all duration-200 ease-out;
+  }
+  
+  .input-field:focus {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(240, 185, 11, 0.1);
+  }
+  
+  /* ============================================
+     Badges with Animations
+     ============================================ */
+  .badge {
+    @apply px-2 py-1 text-xs font-semibold rounded-full transition-all duration-200;
+  }
+  
+  .badge-success {
+    @apply bg-status-success/20 text-status-success;
+  }
+  
+  .badge-error {
+    @apply bg-status-error/20 text-status-error;
+  }
+  
+  .badge-warning {
+    @apply bg-status-warning/20 text-status-warning;
+  }
+  
+  .badge-info {
+    @apply bg-status-info/20 text-status-info;
+  }
+  
+  .badge-pulse {
+    animation: pulse-soft 2s ease-in-out infinite;
+  }
+  
+  /* ============================================
+     Modal/Dialog Animations
+     ============================================ */
+  .modal-backdrop {
+    @apply fixed inset-0 bg-black/60 z-40;
+    animation: fade-in 0.3s ease-out forwards;
+  }
+  
+  .modal-content {
+    @apply relative z-50 bg-background-secondary rounded-xl border border-border-divider shadow-2xl;
+    animation: modal-in 0.3s ease-out forwards;
+  }
+  
+  .modal-content.closing {
+    animation: modal-out 0.2s ease-in forwards;
+  }
+  
+  /* ============================================
+     Dropdown Animations
+     ============================================ */
+  .dropdown-menu {
+    @apply absolute z-50 bg-background-secondary border border-border-divider rounded-lg shadow-xl overflow-hidden;
+    animation: scale-in 0.2s ease-out forwards;
+    transform-origin: top;
+  }
+  
+  .dropdown-item {
+    @apply px-4 py-2 text-text-secondary hover:text-text-primary hover:bg-background-tertiary
+           transition-all duration-150 ease-out cursor-pointer;
+  }
+  
+  .dropdown-item:active {
+    @apply scale-[0.98];
+  }
+  
+  /* ============================================
+     Toast Notifications
+     ============================================ */
+  .toast {
+    @apply fixed z-50 bg-background-secondary border border-border-divider rounded-lg shadow-2xl p-4;
+    animation: toast-in 0.4s ease-out forwards;
+  }
+  
+  .toast.closing {
+    animation: toast-out 0.3s ease-in forwards;
+  }
+  
+  .toast-success {
+    @apply border-l-4 border-l-status-success;
+  }
+  
+  .toast-error {
+    @apply border-l-4 border-l-status-error;
+  }
+  
+  .toast-warning {
+    @apply border-l-4 border-l-status-warning;
+  }
+  
+  .toast-info {
+    @apply border-l-4 border-l-status-info;
+  }
+  
+  /* ============================================
+     Card Animations
+     ============================================ */
+  .card {
+    @apply bg-background-secondary rounded-xl border border-border-divider p-6
+           transition-all duration-300 ease-out;
+  }
+  
+  .card-hover {
+    @apply hover:-translate-y-1 hover:shadow-xl hover:shadow-brand-yellow/5 hover:border-brand-yellow/30;
+  }
+  
+  .card-interactive {
+    @apply cursor-pointer active:scale-[0.99];
+  }
+  
+  /* ============================================
+     Page Transitions
+     ============================================ */
+  .page-enter {
+    animation: fade-in-up 0.4s ease-out forwards;
+  }
+  
+  .page-section {
+    animation: fade-in-up 0.4s ease-out forwards;
+  }
+  
+  .page-section:nth-child(1) { animation-delay: 0ms; }
+  .page-section:nth-child(2) { animation-delay: 100ms; }
+  .page-section:nth-child(3) { animation-delay: 200ms; }
+  .page-section:nth-child(4) { animation-delay: 300ms; }
+  .page-section:nth-child(5) { animation-delay: 400ms; }
+  
+  /* ============================================
+     Loading States
+     ============================================ */
+  .loading-spinner {
+    @apply w-8 h-8 border-3 border-brand-yellow border-t-transparent rounded-full;
+    animation: spin 1s linear infinite;
+  }
+  
+  .loading-skeleton {
+    @apply bg-gradient-to-r from-background-tertiary via-background-secondary to-background-tertiary 
+           bg-[length:200%_100%] rounded-lg;
+    animation: shimmer 2s linear infinite;
+  }
+  
+  .loading-pulse {
+    animation: pulse-soft 1.5s ease-in-out infinite;
+  }
+  
+  /* ============================================
+     Charts & Data Visualization
+     ============================================ */
+  .chart-bar {
+    @apply transition-all duration-500 ease-out;
+  }
+  
+  .chart-bar:hover {
+    filter: brightness(1.1);
+  }
+  
+  .chart-container {
+    animation: fade-in 0.6s ease-out forwards;
+  }
+  
+  /* ============================================
+     Tabs with Animations
+     ============================================ */
+  .tab {
+    @apply px-4 py-2 text-text-secondary font-medium transition-all duration-200 ease-out
+           hover:text-text-primary relative;
+  }
+  
+  .tab.active {
+    @apply text-brand-yellow;
+  }
+  
+  .tab.active::after {
+    content: '';
+    @apply absolute bottom-0 left-0 right-0 h-0.5 bg-brand-yellow;
+    animation: scale-x-in 0.3s ease-out forwards;
+  }
+  
+  @keyframes scale-x-in {
+    from { transform: scaleX(0); }
+    to { transform: scaleX(1); }
+  }
+  
+  /* ============================================
+     Accordion/Collapse Animations
+     ============================================ */
+  .accordion-content {
+    @apply overflow-hidden transition-all duration-300 ease-out;
+  }
+  
+  .accordion-icon {
+    @apply transition-transform duration-300 ease-out;
+  }
+  
+  .accordion-icon.open {
+    @apply rotate-180;
+  }
+  
+  /* ============================================
+     Notification Badge
+     ============================================ */
+  .notification-badge {
+    @apply absolute -top-1 -right-1 min-w-[18px] h-[18px] flex items-center justify-center
+           text-xs font-bold bg-status-error text-white rounded-full;
+    animation: bounce-in 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
+  }
+  
+  .notification-badge.pulse {
+    animation: pulse-ring 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+  
+  /* ============================================
+     Avatar Animations
+     ============================================ */
+  .avatar {
+    @apply rounded-full overflow-hidden transition-all duration-300 ease-out;
+  }
+  
+  .avatar:hover {
+    @apply scale-105 ring-2 ring-brand-yellow/50;
+  }
+  
+  .avatar-group .avatar {
+    @apply -ml-2 ring-2 ring-background-primary;
+  }
+  
+  .avatar-group .avatar:hover {
+    @apply z-10 scale-110;
+  }
+  
+  /* ============================================
+     Status Indicators
+     ============================================ */
+  .status-dot {
+    @apply w-2 h-2 rounded-full;
+  }
+  
+  .status-dot.online {
+    @apply bg-status-success;
+    animation: pulse-ring 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+  
+  .status-dot.offline {
+    @apply bg-text-disabled;
+  }
+  
+  .status-dot.busy {
+    @apply bg-status-error;
+    animation: pulse-soft 1.5s ease-in-out infinite;
+  }
+  
+  /* ============================================
+     Hover Effects
+     ============================================ */
+  .hover-lift {
+    @apply transition-all duration-300 ease-out hover:-translate-y-1;
+  }
+  
+  .hover-glow {
+    @apply transition-all duration-300 ease-out;
+  }
+  
+  .hover-glow:hover {
+    box-shadow: 0 0 20px rgba(240, 185, 11, 0.3);
+  }
+  
+  .hover-scale {
+    @apply transition-transform duration-200 ease-out hover:scale-105 active:scale-95;
+  }
+  
+  /* ============================================
+     Focus States
+     ============================================ */
+  .focus-ring {
+    @apply focus:outline-none focus:ring-2 focus:ring-brand-yellow/50 focus:ring-offset-2 
+           focus:ring-offset-background-primary transition-all duration-200;
+  }
+  
+  /* ============================================
+     Utility Animations
+     ============================================ */
+  .animate-enter {
+    animation: fade-in-up 0.4s ease-out forwards;
+  }
+  
+  .animate-stagger-1 { animation-delay: 0ms; }
+  .animate-stagger-2 { animation-delay: 50ms; }
+  .animate-stagger-3 { animation-delay: 100ms; }
+  .animate-stagger-4 { animation-delay: 150ms; }
+  .animate-stagger-5 { animation-delay: 200ms; }
+  .animate-stagger-6 { animation-delay: 250ms; }
+  .animate-stagger-7 { animation-delay: 300ms; }
+  .animate-stagger-8 { animation-delay: 350ms; }
+  
+  /* ============================================
+     Price Change Animations
+     ============================================ */
+  .price-up {
+    @apply text-status-success;
+    animation: count-up 0.3s ease-out;
+  }
+  
+  .price-down {
+    @apply text-status-error;
+    animation: count-up 0.3s ease-out;
+  }
+  
+  .price-flash-up {
+    animation: highlight 0.5s ease-out;
+    background: linear-gradient(90deg, transparent, rgba(14, 203, 129, 0.2), transparent);
+  }
+  
+  .price-flash-down {
+    animation: highlight 0.5s ease-out;
+    background: linear-gradient(90deg, transparent, rgba(246, 70, 93, 0.2), transparent);
+  }
+}

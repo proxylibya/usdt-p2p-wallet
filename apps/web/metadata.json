@@ -1,0 +1,10 @@
+
+{
+  "name": "USDT Wallet Enterprise",
+  "description": "Final Release v2.5.0 Production Ready. Comprehensive P2P crypto wallet with AI integration, Web3 dApp browser, and advanced security. Ready for deployment.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ]
+}

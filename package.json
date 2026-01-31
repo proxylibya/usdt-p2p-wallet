@@ -1,0 +1,26 @@
+{
+  "name": "usdt-p2p-project",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -k -n web,api -c cyan,magenta \"npm run dev -w apps/web\" \"npm run start:dev -w apps/api\"",
+    "dev:web": "npm run dev -w apps/web",
+    "dev:api": "npm run start:dev -w apps/api",
+    "dev:admin": "npm run dev -w apps/admin",
+    "dev:all": "concurrently -k -n web,api,admin -c cyan,magenta,green \"npm run dev -w apps/web\" \"npm run start:dev -w apps/api\" \"npm run dev -w apps/admin\"",
+    "build:admin": "npm run build -w apps/admin",
+    "prisma:generate": "npm run prisma:generate -w apps/api",
+    "prisma:migrate": "npm run prisma:migrate -w apps/api",
+    "prisma:migrate:prod": "npm run prisma:migrate:prod -w apps/api",
+    "prisma:studio": "npm run prisma:studio -w apps/api",
+    "prisma:seed": "npm run prisma:seed -w apps/api",
+    "build": "npm run build -w apps/web && npm run build -w apps/api",
+    "build:web": "npm run build -w apps/web",
+    "build:api": "npm run build -w apps/api"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.0"
+  }
+}
