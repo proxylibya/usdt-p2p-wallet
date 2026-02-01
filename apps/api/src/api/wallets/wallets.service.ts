@@ -275,11 +275,20 @@ export class WalletsService {
   }
 
   async getDepositAddress(userId: string, asset: string, network: string) {
+    // First try to find a wallet with an existing address
     let wallet = await this.prisma.wallet.findFirst({
-      where: { userId, asset, network },
+      where: { userId, asset, network, address: { not: null } },
     });
 
+    // If no wallet with address, find any SPOT wallet for this asset/network
     if (!wallet) {
+      wallet = await this.prisma.wallet.findFirst({
+        where: { userId, asset, network, accountType: 'SPOT' },
+      });
+    }
+
+    if (!wallet) {
+      // Create new wallet with unique address
       const address = this.generateDepositAddress(network);
       wallet = await this.prisma.wallet.create({
         data: {
@@ -291,10 +300,17 @@ export class WalletsService {
           lockedBalance: 0,
         },
       });
+    } else if (!wallet.address) {
+      // Wallet exists but has no address - generate and PERSIST it
+      const address = this.generateDepositAddress(network);
+      wallet = await this.prisma.wallet.update({
+        where: { id: wallet.id },
+        data: { address },
+      });
     }
 
     return {
-      address: wallet.address || this.generateDepositAddress(network),
+      address: wallet.address!,
       network,
       asset,
       qrCode: `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${wallet.address}`,

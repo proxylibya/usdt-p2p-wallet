@@ -24,6 +24,7 @@ interface UserDetail {
   name: string;
   email: string;
   phone: string;
+  avatarUrl?: string;
   status: 'active' | 'suspended' | 'pending';
   kycStatus: 'verified' | 'pending' | 'rejected' | 'none';
   role: 'user' | 'merchant' | 'admin';

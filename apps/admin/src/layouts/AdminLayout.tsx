@@ -63,6 +63,15 @@ const navItems: NavItem[] = [
   { label: 'Security Center', path: '/security', icon: <ShieldCheck className="w-5 h-5" /> },
   { label: 'System Monitor', path: '/monitoring', icon: <Activity className="w-5 h-5" /> },
   { label: 'Reports', path: '/reports', icon: <BarChart3 className="w-5 h-5" /> },
+  { 
+    label: 'SMS System', 
+    path: '/sms', 
+    icon: <Megaphone className="w-5 h-5" />,
+    children: [
+      { label: 'Providers', path: '/sms/providers' },
+      { label: 'Logs', path: '/sms/logs' },
+    ]
+  },
   { label: 'System Logs', path: '/logs', icon: <ScrollText className="w-5 h-5" /> },
   { label: 'Settings', path: '/settings', icon: <Settings className="w-5 h-5" /> },
 ];

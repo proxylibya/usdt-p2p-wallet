@@ -5,12 +5,12 @@ import { ThrottlerModule } from '@nestjs/throttler';
 // Infrastructure
 import { PrismaModule } from './infrastructure/database/prisma.module';
 import { RedisModule } from './infrastructure/cache/redis.module';
-import { SmsModule } from './infrastructure/sms/sms.module';
 import { EmailModule } from './infrastructure/email/email.module';
 import { StorageModule } from './infrastructure/storage/storage.module';
 
 // Feature Modules
 import { AuthModule } from './api/auth/auth.module';
+import { SmsModule } from './api/sms/sms.module';
 import { UsersModule } from './api/users/users.module';
 import { WalletsModule } from './api/wallets/wallets.module';
 import { P2PModule } from './api/p2p/p2p.module';

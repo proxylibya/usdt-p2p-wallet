@@ -9,6 +9,7 @@ interface UserData {
   name: string;
   phone: string;
   email: string;
+  avatarUrl?: string;
   isActive: boolean;
   isBanned: boolean;
   kycStatus: string;

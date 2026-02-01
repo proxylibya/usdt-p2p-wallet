@@ -43,6 +43,10 @@ import RestrictionFormPage from './pages/limits/RestrictionFormPage';
 import ApiKeysPage from './pages/api-keys/ApiKeysPage';
 import CreateApiKeyPage from './pages/api-keys/CreateApiKeyPage';
 
+import SmsProvidersPage from './pages/sms/SmsProvidersPage';
+import SmsProviderFormPage from './pages/sms/SmsProviderFormPage';
+import SmsLogsPage from './pages/sms/SmsLogsPage';
+
 function App() {
   return (
     <BrowserRouter>
@@ -119,6 +123,13 @@ function App() {
               {/* System */}
               <Route path="monitoring" element={<SystemMonitoringPage />} />
               <Route path="reports" element={<ReportsPage />} />
+              
+              {/* SMS System */}
+              <Route path="sms/providers" element={<SmsProvidersPage />} />
+              <Route path="sms/providers/create" element={<SmsProviderFormPage />} />
+              <Route path="sms/providers/:id/edit" element={<SmsProviderFormPage />} />
+              <Route path="sms/logs" element={<SmsLogsPage />} />
+
               <Route path="settings" element={<SettingsPage />} />
               <Route path="logs" element={<LogsPage />} />
             </Route>

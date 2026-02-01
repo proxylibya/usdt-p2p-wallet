@@ -5,7 +5,7 @@ import * as bcrypt from 'bcrypt';
 import { v4 as uuidv4 } from 'uuid';
 import { PrismaService } from '../../infrastructure/database/prisma.service';
 import { RedisService } from '../../infrastructure/cache/redis.service';
-import { SmsService } from '../../infrastructure/sms/sms.service';
+import { SmsService } from '../sms/sms.service';
 import { normalizePhoneNumber } from '../../shared/utils/phone.util';
 
 @Injectable()
@@ -221,19 +221,22 @@ export class AuthService {
     // Hash password
     const passwordHash = await this.hashPassword(data.password);
 
-    // Create user with default wallet
+    // Create user with default wallets (addresses generated on first deposit request)
     const user = await this.prisma.user.create({
       data: {
         name: data.name,
         email: data.email,
         phone: normalizedPhone,
         passwordHash,
-        // Create default USDT wallet for new user
+        // Create default wallets for new user - addresses will be generated when user requests deposit
         wallets: {
           create: [
             { asset: 'USDT', network: 'TRC20', balance: 0, lockedBalance: 0, accountType: 'SPOT' },
             { asset: 'USDT', network: 'TRC20', balance: 0, lockedBalance: 0, accountType: 'FUNDING' },
             { asset: 'USDC', network: 'ERC20', balance: 0, lockedBalance: 0, accountType: 'SPOT' },
+            { asset: 'USDC', network: 'ERC20', balance: 0, lockedBalance: 0, accountType: 'FUNDING' },
+            { asset: 'BTC', network: 'Bitcoin', balance: 0, lockedBalance: 0, accountType: 'SPOT' },
+            { asset: 'ETH', network: 'ERC20', balance: 0, lockedBalance: 0, accountType: 'SPOT' },
           ]
         }
       },

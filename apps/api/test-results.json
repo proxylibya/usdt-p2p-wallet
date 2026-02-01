@@ -1,0 +1,202 @@
+{
+  "timestamp": "2026-01-31T23:42:44.569Z",
+  "summary": {
+    "passed": 17,
+    "failed": 0,
+    "skipped": 1,
+    "total": 18
+  },
+  "results": [
+    {
+      "test": "User Registration",
+      "status": "✅",
+      "details": "User registered successfully, OTP sent",
+      "data": {
+        "phone": "+218681719686"
+      }
+    },
+    {
+      "test": "OTP Verification",
+      "status": "❓",
+      "details": "OTP verification requires real OTP from SMS/Redis",
+      "data": {
+        "note": "Skip this in automated testing without SMS integration"
+      }
+    },
+    {
+      "test": "Direct Login",
+      "status": "✅",
+      "details": "Login successful with direct password auth",
+      "data": {
+        "hasToken": true
+      }
+    },
+    {
+      "test": "Get User Wallets",
+      "status": "✅",
+      "details": "Retrieved 4 wallets successfully",
+      "data": {
+        "count": 4,
+        "wallets": [
+          {
+            "asset": "USDT",
+            "network": "TRC20",
+            "hasAddress": false,
+            "balance": "0"
+          },
+          {
+            "asset": "USDC",
+            "network": "ERC20",
+            "hasAddress": false,
+            "balance": "0"
+          },
+          {
+            "asset": "BTC",
+            "network": "Bitcoin",
+            "hasAddress": false,
+            "balance": "0"
+          },
+          {
+            "asset": "ETH",
+            "network": "ERC20",
+            "hasAddress": false,
+            "balance": "0"
+          }
+        ]
+      }
+    },
+    {
+      "test": "Deposit Address: USDT/TRC20",
+      "status": "✅",
+      "details": "Valid address format generated",
+      "data": {
+        "address": "T7yvKhytYScKTnyTY49rHE138tCwdstZyx",
+        "network": "TRC20"
+      }
+    },
+    {
+      "test": "Deposit Address: USDT/ERC20",
+      "status": "✅",
+      "details": "Valid address format generated",
+      "data": {
+        "address": "0x4qBW3FxFfwjFvwLdcRBdnxQH4M5K9QyPFkgDKzys",
+        "network": "ERC20"
+      }
+    },
+    {
+      "test": "Deposit Address: USDT/BEP20",
+      "status": "✅",
+      "details": "Valid address format generated",
+      "data": {
+        "address": "0xtQWFBMibh1xqvi2pzGonSK15ovnwWJ6wYki5sqhK",
+        "network": "BEP20"
+      }
+    },
+    {
+      "test": "Deposit Address: USDC/ERC20",
+      "status": "✅",
+      "details": "Valid address format generated",
+      "data": {
+        "address": "0xqMHCJu6oAYr17FoUiXDoz8EVf7n9ZRV3iudmMAeq",
+        "network": "ERC20"
+      }
+    },
+    {
+      "test": "Deposit Address: BTC/Bitcoin",
+      "status": "✅",
+      "details": "Valid address format generated",
+      "data": {
+        "address": "bc1qfV5h4kVM3bvj7fT2ss2Jq5Hz4iqQPRiwfBB532",
+        "network": "Bitcoin"
+      }
+    },
+    {
+      "test": "Deposit Address: ETH/ERC20",
+      "status": "✅",
+      "details": "Valid address format generated",
+      "data": {
+        "address": "0xddYJkPVxvvr5oybnPJTJNzEPxbbkecD4f7RhCs48",
+        "network": "ERC20"
+      }
+    },
+    {
+      "test": "Deposit Address: SOL/SOL",
+      "status": "✅",
+      "details": "Valid address format generated",
+      "data": {
+        "address": "nRMxyrGsUNWSCA2EjFc8qX7sBud2ggqV7Pp41fek777V",
+        "network": "SOL"
+      }
+    },
+    {
+      "test": "Address Persistence: USDT-TRC20",
+      "status": "✅",
+      "details": "Same address returned (correctly persisted)",
+      "data": {
+        "original": "T7yvKhytYScKTnyTY49rHE138tCwdstZyx",
+        "new": "T7yvKhytYScKTnyTY49rHE138tCwdstZyx",
+        "matched": true
+      }
+    },
+    {
+      "test": "Address Persistence: USDT-ERC20",
+      "status": "✅",
+      "details": "Same address returned (correctly persisted)",
+      "data": {
+        "original": "0x4qBW3FxFfwjFvwLdcRBdnxQH4M5K9QyPFkgDKzys",
+        "new": "0x4qBW3FxFfwjFvwLdcRBdnxQH4M5K9QyPFkgDKzys",
+        "matched": true
+      }
+    },
+    {
+      "test": "Address Persistence: USDT-BEP20",
+      "status": "✅",
+      "details": "Same address returned (correctly persisted)",
+      "data": {
+        "original": "0xtQWFBMibh1xqvi2pzGonSK15ovnwWJ6wYki5sqhK",
+        "new": "0xtQWFBMibh1xqvi2pzGonSK15ovnwWJ6wYki5sqhK",
+        "matched": true
+      }
+    },
+    {
+      "test": "Address Persistence: USDC-ERC20",
+      "status": "✅",
+      "details": "Same address returned (correctly persisted)",
+      "data": {
+        "original": "0xqMHCJu6oAYr17FoUiXDoz8EVf7n9ZRV3iudmMAeq",
+        "new": "0xqMHCJu6oAYr17FoUiXDoz8EVf7n9ZRV3iudmMAeq",
+        "matched": true
+      }
+    },
+    {
+      "test": "Address Persistence: BTC-Bitcoin",
+      "status": "✅",
+      "details": "Same address returned (correctly persisted)",
+      "data": {
+        "original": "bc1qfV5h4kVM3bvj7fT2ss2Jq5Hz4iqQPRiwfBB532",
+        "new": "bc1qfV5h4kVM3bvj7fT2ss2Jq5Hz4iqQPRiwfBB532",
+        "matched": true
+      }
+    },
+    {
+      "test": "Address Persistence: ETH-ERC20",
+      "status": "✅",
+      "details": "Same address returned (correctly persisted)",
+      "data": {
+        "original": "0xddYJkPVxvvr5oybnPJTJNzEPxbbkecD4f7RhCs48",
+        "new": "0xddYJkPVxvvr5oybnPJTJNzEPxbbkecD4f7RhCs48",
+        "matched": true
+      }
+    },
+    {
+      "test": "Address Persistence: SOL-SOL",
+      "status": "✅",
+      "details": "Same address returned (correctly persisted)",
+      "data": {
+        "original": "nRMxyrGsUNWSCA2EjFc8qX7sBud2ggqV7Pp41fek777V",
+        "new": "nRMxyrGsUNWSCA2EjFc8qX7sBud2ggqV7Pp41fek777V",
+        "matched": true
+      }
+    }
+  ]
+}

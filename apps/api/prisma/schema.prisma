@@ -566,3 +566,55 @@ model SystemSettings {
 
   @@map("system_settings")
 }
+
+// ============================================
+// 📨 SMS SYSTEM
+// ============================================
+
+model SmsProvider {
+  id          String  @id @default(uuid())
+  name        String
+  type        String  // 'twilio', 'infobip', 'generic_http'
+  config      Json    // API Key, URL, Headers, Mapping
+  priority    Int     @default(0) // Higher priority tries first
+  isActive    Boolean @default(true)
+  
+  // Cost tracking
+  costPerMsg  Decimal @default(0) @db.Decimal(10, 4)
+  currency    String  @default("USD")
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  logs        SmsLog[]
+
+  @@map("sms_providers")
+}
+
+model SmsLog {
+  id          String   @id @default(uuid())
+  
+  providerId  String?
+  provider    SmsProvider? @relation(fields: [providerId], references: [id])
+
+  recipient   String
+  message     String
+  status      SmsStatus @default(PENDING)
+  
+  response    Json?    // Provider response
+  cost        Decimal? @db.Decimal(10, 4)
+  
+  sentAt      DateTime @default(now())
+
+  @@index([recipient])
+  @@index([status])
+  @@index([sentAt])
+  @@map("sms_logs")
+}
+
+enum SmsStatus {
+  PENDING
+  SENT
+  DELIVERED
+  FAILED
+}
