@@ -13,13 +13,18 @@ RUN npm install
 COPY . .
 
 # Generate Prisma client
-RUN cd apps/api && npx prisma generate
+WORKDIR /app/apps/api
+RUN npx prisma generate
 
 # Build the API
+WORKDIR /app
 RUN npm run build:api
 
 # Expose port
 EXPOSE 3002
 
+# Set working directory to API
+WORKDIR /app/apps/api
+
 # Start command
-CMD ["sh", "-c", "cd apps/api && npx prisma migrate deploy && node dist/main.js"]
+CMD ["sh", "-c", "npx prisma migrate deploy && node dist/main"]
