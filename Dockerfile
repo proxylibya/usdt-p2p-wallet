@@ -5,6 +5,7 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 COPY apps/api/package*.json ./apps/api/
+COPY apps/api/prisma ./apps/api/prisma/
 
 # Install dependencies
 RUN npm install
