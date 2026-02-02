@@ -12,9 +12,17 @@ out/
 .env
 .env.local
 .env.*.local
+.env.production
 apps/web/.env
 apps/api/.env
+apps/api/.env.production
 apps/admin/.env
+
+# Secret files
+*.pem
+*.key
+*.crt
+firebase-adminsdk*.json
 
 # IDE
 .idea/

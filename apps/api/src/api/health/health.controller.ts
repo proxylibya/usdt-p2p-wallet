@@ -7,15 +7,22 @@ interface HealthStatus {
   status: 'ok' | 'degraded' | 'unhealthy';
   timestamp: string;
   version: string;
+  environment: string;
   uptime: number;
   services: {
     database: 'healthy' | 'unhealthy';
     cache: 'healthy' | 'unhealthy' | 'disabled';
+    sms?: 'configured' | 'not_configured';
   };
   memory?: {
     used: number;
     total: number;
     percentage: number;
+  };
+  metrics?: {
+    activeConnections?: number;
+    pendingTransactions?: number;
+    last24hTransactions?: number;
   };
 }
 
@@ -36,7 +43,8 @@ export class HealthController {
     const checks: HealthStatus = {
       status: 'ok',
       timestamp: new Date().toISOString(),
-      version: '1.0.0',
+      version: process.env.npm_package_version || '1.0.0',
+      environment: process.env.NODE_ENV || 'development',
       uptime: Math.floor((Date.now() - this.startTime) / 1000),
       services: {
         database: 'unhealthy',
@@ -65,7 +73,7 @@ export class HealthController {
   }
 
   @Get('detailed')
-  @ApiOperation({ summary: 'Detailed health check with memory info' })
+  @ApiOperation({ summary: 'Detailed health check with memory and metrics' })
   async detailedCheck(): Promise<HealthStatus> {
     const basicHealth = await this.check();
     
@@ -76,6 +84,33 @@ export class HealthController {
       total: Math.round(memUsage.heapTotal / 1024 / 1024),
       percentage: Math.round((memUsage.heapUsed / memUsage.heapTotal) * 100),
     };
+
+    // Add business metrics
+    try {
+      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      
+      const [pendingTx, last24hTx, activeSessions] = await Promise.all([
+        this.prisma.transaction.count({ where: { status: 'PENDING' } }),
+        this.prisma.transaction.count({ where: { createdAt: { gte: oneDayAgo } } }),
+        this.prisma.session.count({ where: { expiresAt: { gt: new Date() } } }),
+      ]);
+
+      basicHealth.metrics = {
+        pendingTransactions: pendingTx,
+        last24hTransactions: last24hTx,
+        activeConnections: activeSessions,
+      };
+    } catch {
+      // Metrics are optional, don't fail health check
+    }
+
+    // Check SMS configuration
+    try {
+      const smsProviders = await this.prisma.smsProvider.count({ where: { isActive: true } });
+      basicHealth.services.sms = smsProviders > 0 ? 'configured' : 'not_configured';
+    } catch {
+      basicHealth.services.sms = 'not_configured';
+    }
 
     return basicHealth;
   }

@@ -136,6 +136,9 @@ model Wallet {
   @@unique([userId, asset, network, accountType])
   @@index([userId])
   @@index([asset])
+  @@index([userId, asset])
+  @@index([userId, accountType])
+  @@index([network])
   @@map("wallets")
 }
 
@@ -177,6 +180,10 @@ model Transaction {
   @@index([type])
   @@index([status])
   @@index([createdAt])
+  @@index([p2pTradeId])
+  @@index([asset])
+  @@index([userId, type])
+  @@index([userId, createdAt])
   @@map("transactions")
 }
 
@@ -560,11 +567,151 @@ enum StakingStatus {
 model SystemSettings {
   id        String   @id @default(uuid())
   key       String   @unique // e.g. 'platform_config'
-  value     Json     // Stores all settings as a JSON object for flexibility
-  updatedBy String?  // Admin ID
+  value     Json // Stores all settings as a JSON object for flexibility
+  updatedBy String? // Admin ID
   updatedAt DateTime @updatedAt
 
   @@map("system_settings")
+}
+
+// ============================================
+// 🎨 SITE CONFIGURATION (UI Management)
+// ============================================
+
+model SiteConfig {
+  id String @id @default(uuid())
+
+  // Branding
+  appName        String  @default("UbinPay")
+  appTagline     String  @default("The Global P2P USDT Platform")
+  appTaglineAr   String  @default("المنصة العالمية الرائدة لتداول USDT P2P")
+  logoUrl        String?
+  faviconUrl     String?
+  primaryColor   String  @default("#F0B90B")
+  secondaryColor String  @default("#0ECB81")
+
+  // Hero Section
+  heroTitle      String  @default("USDT")
+  heroTitleAr    String  @default("USDT")
+  heroSubtitle   String  @default("Buy & Sell USDT with local payment methods")
+  heroSubtitleAr String  @default("شراء وبيع USDT بوسائل الدفع المحلية")
+  heroImageUrl   String?
+
+  // Features (JSON array)
+  features Json @default("[]")
+
+  // Supported Currencies (JSON array)
+  currencies Json @default("[\"USDT\", \"USDC\", \"BUSD\", \"DAI\"]")
+
+  // Social Links (JSON object)
+  socialLinks Json @default("{}")
+
+  // Contact Info
+  supportEmail String  @default("support@ubinpay.com")
+  supportPhone String?
+  telegramUrl  String?
+  whatsappUrl  String?
+
+  // App Links
+  androidAppUrl String?
+  iosAppUrl     String?
+
+  // Footer
+  footerText   String @default("© 2024 UbinPay. All rights reserved.")
+  footerTextAr String @default("© 2024 UbinPay. جميع الحقوق محفوظة.")
+
+  // SEO
+  metaTitle       String  @default("UbinPay - P2P USDT Trading")
+  metaDescription String  @default("Buy and sell USDT securely with local payment methods")
+  metaKeywords    String?
+
+  // Status
+  isActive Boolean @default(true)
+
+  updatedBy String?
+  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+
+  @@map("site_config")
+}
+
+model PaymentMethodConfig {
+  id String @id @default(uuid())
+
+  key     String  @unique // sadad, mobicash, etc.
+  label   String // Display name
+  labelAr String? // Arabic name
+  iconUrl String? // Custom icon
+
+  scope       String  @default("local") // local, global
+  countryCode String? // LY, SA, EG, etc.
+
+  // Display settings
+  isActive  Boolean @default(true)
+  sortOrder Int     @default(0)
+
+  // Metadata
+  config Json? // Additional config like limits, fees
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([countryCode])
+  @@index([scope])
+  @@map("payment_method_configs")
+}
+
+model CurrencyConfig {
+  id String @id @default(uuid())
+
+  symbol  String  @unique // USDT, USDC, etc.
+  name    String // Full name
+  nameAr  String? // Arabic name
+  iconUrl String? // Custom icon
+
+  // Networks supported
+  networks Json @default("[]") // ["TRC20", "ERC20", "BEP20"]
+
+  // Display
+  isActive  Boolean @default(true)
+  sortOrder Int     @default(0)
+
+  // Trading config
+  minAmount Decimal @default(1) @db.Decimal(20, 8)
+  maxAmount Decimal @default(100000) @db.Decimal(20, 8)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("currency_configs")
+}
+
+model BannerConfig {
+  id String @id @default(uuid())
+
+  title      String
+  titleAr    String?
+  subtitle   String?
+  subtitleAr String?
+  imageUrl   String?
+  linkUrl    String?
+  linkType   String  @default("internal") // internal, external
+
+  // Display
+  position  String  @default("home_top") // home_top, home_middle, wallet, p2p
+  isActive  Boolean @default(true)
+  sortOrder Int     @default(0)
+
+  // Schedule
+  startDate DateTime?
+  endDate   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([position])
+  @@index([isActive])
+  @@map("banner_configs")
 }
 
 // ============================================
@@ -572,39 +719,39 @@ model SystemSettings {
 // ============================================
 
 model SmsProvider {
-  id          String  @id @default(uuid())
-  name        String
-  type        String  // 'twilio', 'infobip', 'generic_http'
-  config      Json    // API Key, URL, Headers, Mapping
-  priority    Int     @default(0) // Higher priority tries first
-  isActive    Boolean @default(true)
-  
+  id       String  @id @default(uuid())
+  name     String
+  type     String // 'twilio', 'infobip', 'generic_http'
+  config   Json // API Key, URL, Headers, Mapping
+  priority Int     @default(0) // Higher priority tries first
+  isActive Boolean @default(true)
+
   // Cost tracking
-  costPerMsg  Decimal @default(0) @db.Decimal(10, 4)
-  currency    String  @default("USD")
+  costPerMsg Decimal @default(0) @db.Decimal(10, 4)
+  currency   String  @default("USD")
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  logs        SmsLog[]
+  logs SmsLog[]
 
   @@map("sms_providers")
 }
 
 model SmsLog {
-  id          String   @id @default(uuid())
-  
-  providerId  String?
-  provider    SmsProvider? @relation(fields: [providerId], references: [id])
+  id String @id @default(uuid())
 
-  recipient   String
-  message     String
-  status      SmsStatus @default(PENDING)
-  
-  response    Json?    // Provider response
-  cost        Decimal? @db.Decimal(10, 4)
-  
-  sentAt      DateTime @default(now())
+  providerId String?
+  provider   SmsProvider? @relation(fields: [providerId], references: [id])
+
+  recipient String
+  message   String
+  status    SmsStatus @default(PENDING)
+
+  response Json? // Provider response
+  cost     Decimal? @db.Decimal(10, 4)
+
+  sentAt DateTime @default(now())
 
   @@index([recipient])
   @@index([status])
@@ -617,4 +764,262 @@ enum SmsStatus {
   SENT
   DELIVERED
   FAILED
+}
+
+// ============================================
+// 📢 ANNOUNCEMENTS
+// ============================================
+
+model Announcement {
+  id String @id @default(uuid())
+
+  title     String
+  titleAr   String?
+  content   String
+  contentAr String?
+
+  type   AnnouncementType @default(INFO)
+  target String           @default("all") // all, verified, merchants
+
+  isPinned  Boolean @default(false)
+  isActive  Boolean @default(true)
+  startDate DateTime @default(now())
+  endDate   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([type])
+  @@map("announcements")
+}
+
+enum AnnouncementType {
+  INFO
+  WARNING
+  SUCCESS
+  PROMO
+}
+
+// ============================================
+// 💰 FEE RULES
+// ============================================
+
+model FeeRule {
+  id String @id @default(uuid())
+
+  name        String
+  description String?
+  type        String @default("percentage") // percentage, fixed, tiered
+  category    String // trading, withdrawal, deposit, p2p, swap, staking
+  value       Decimal @db.Decimal(10, 4)
+  
+  minAmount   Decimal? @db.Decimal(20, 8)
+  maxAmount   Decimal? @db.Decimal(20, 8)
+  appliesTo   String   @default("all") // all, verified, vip, merchant
+
+  isActive  Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([category])
+  @@index([isActive])
+  @@map("fee_rules")
+}
+
+// ============================================
+// 🚫 LIMIT RULES & RESTRICTIONS
+// ============================================
+
+model LimitRule {
+  id String @id @default(uuid())
+
+  name          String
+  category      String // withdrawal, deposit, p2p, trading
+  userType      String @default("all") // all, unverified, verified, vip, merchant
+  
+  minAmount     Decimal @db.Decimal(20, 8)
+  maxAmount     Decimal @db.Decimal(20, 8)
+  dailyLimit    Decimal @db.Decimal(20, 8)
+  monthlyLimit  Decimal @db.Decimal(20, 8)
+  
+  requiresApproval   Boolean @default(false)
+  approvalThreshold  Decimal @default(0) @db.Decimal(20, 8)
+
+  isActive  Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([category])
+  @@index([userType])
+  @@map("limit_rules")
+}
+
+model Restriction {
+  id String @id @default(uuid())
+
+  type   String // country, ip, device
+  value  String
+  action String @default("block") // block, warn, review
+  reason String?
+
+  isActive  Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([type])
+  @@index([value])
+  @@map("restrictions")
+}
+
+// ============================================
+// 🔐 API KEYS
+// ============================================
+
+model ApiKey {
+  id String @id @default(uuid())
+
+  name        String
+  keyHash     String   @unique // Hashed key for storage
+  keyPrefix   String   // First 8 chars for display
+  permissions String[] // Array of permission strings
+  ipWhitelist String[] // Array of allowed IPs
+  rateLimit   Int      @default(1000) // Requests per minute
+
+  isActive    Boolean   @default(true)
+  lastUsedAt  DateTime?
+  expiresAt   DateTime?
+  
+  createdBy   String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([keyPrefix])
+  @@map("api_keys")
+}
+
+// ============================================
+// 🛡️ SECURITY
+// ============================================
+
+model BlockedEntity {
+  id String @id @default(uuid())
+
+  type      String // ip, user, device, phone, email
+  value     String
+  reason    String?
+  duration  String? // permanent, 1h, 24h, 7d, 30d
+
+  blockedBy String?
+  expiresAt DateTime?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([type, value])
+  @@index([type])
+  @@index([expiresAt])
+  @@map("blocked_entities")
+}
+
+model SecurityAlert {
+  id String @id @default(uuid())
+
+  type      String // login_attempt, large_withdrawal, suspicious_tx, etc
+  severity  String @default("medium") // low, medium, high, critical
+  
+  userId    String?
+  userName  String?
+  details   String
+  ipAddress String?
+  location  String?
+  
+  status    String @default("new") // new, investigating, resolved, dismissed
+  resolvedBy String?
+  resolvedAt DateTime?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([type])
+  @@index([severity])
+  @@index([status])
+  @@index([userId])
+  @@map("security_alerts")
+}
+
+// ============================================
+// 🎫 SUPPORT TICKETS
+// ============================================
+
+model SupportTicket {
+  id String @id @default(uuid())
+
+  userId    String
+  userName  String?
+  userEmail String?
+  userPhone String?
+
+  subject   String
+  category  String   @default("general") // general, transaction, p2p, kyc, security
+  priority  String   @default("medium") // low, medium, high, urgent
+  status    String   @default("open") // open, in_progress, waiting, resolved, closed
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  resolvedAt DateTime?
+
+  messages SupportMessage[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([priority])
+  @@map("support_tickets")
+}
+
+model SupportMessage {
+  id String @id @default(uuid())
+
+  ticketId String
+  ticket   SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  senderId   String // User ID or Admin ID
+  senderType String // user, admin
+  senderName String?
+  message    String
+  attachments String[]
+
+  isInternal Boolean @default(false) // Admin-only notes
+
+  createdAt DateTime @default(now())
+
+  @@index([ticketId])
+  @@map("support_messages")
+}
+
+// ============================================
+// 💳 P2P PAYMENT METHODS (Admin Managed)
+// ============================================
+
+model P2PPaymentMethod {
+  id String @id @default(uuid())
+
+  name     String
+  nameAr   String?
+  type     String // bank, ewallet, cash
+  icon     String?
+  
+  requiresDetails String[] // bankName, accountNumber, phoneNumber, etc
+  countries       String[] // LY, SA, EG
+  processingTime  String   @default("Instant")
+
+  isActive  Boolean @default(true)
+  sortOrder Int     @default(0)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([type])
+  @@index([isActive])
+  @@map("p2p_payment_methods")
 }

@@ -1,4 +1,5 @@
-import { Controller, Post, Get, Body, Param, UseGuards, Request, Query } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, UseGuards, Req, Query } from '@nestjs/common';
+import { Request } from 'express';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { StakingService } from './staking.service';
@@ -19,23 +20,23 @@ export class StakingController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Subscribe to a staking product' })
-  subscribe(@Request() req: any, @Body() dto: SubscribeDto) {
-    return this.stakingService.subscribe(req.user.sub, dto);
+  subscribe(@Req() req: Request, @Body() dto: SubscribeDto) {
+    return this.stakingService.subscribe(req.user!.id, dto);
   }
 
   @Get('subscriptions')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Get my subscriptions' })
-  getMySubscriptions(@Request() req: any) {
-    return this.stakingService.getMySubscriptions(req.user.sub);
+  getMySubscriptions(@Req() req: Request) {
+    return this.stakingService.getMySubscriptions(req.user!.id);
   }
 
   @Post('redeem/:id')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Redeem a subscription' })
-  redeem(@Request() req: any, @Param('id') id: string) {
-    return this.stakingService.redeem(req.user.sub, id);
+  redeem(@Req() req: Request, @Param('id') id: string) {
+    return this.stakingService.redeem(req.user!.id, id);
   }
 }

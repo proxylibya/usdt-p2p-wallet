@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 
 // Infrastructure
@@ -7,6 +7,11 @@ import { PrismaModule } from './infrastructure/database/prisma.module';
 import { RedisModule } from './infrastructure/cache/redis.module';
 import { EmailModule } from './infrastructure/email/email.module';
 import { StorageModule } from './infrastructure/storage/storage.module';
+import { AuditModule } from './infrastructure/audit/audit.module';
+import { WebhookModule } from './infrastructure/webhook/webhook.module';
+
+// Shared Services
+import { CleanupService } from './shared/services/cleanup.service';
 
 // Feature Modules
 import { AuthModule } from './api/auth/auth.module';
@@ -32,11 +37,15 @@ import { UploadModule } from './api/upload/upload.module';
       envFilePath: ['.env.local', '.env'],
     }),
     
-    // Rate Limiting
-    ThrottlerModule.forRoot([{
-      ttl: 60000, // 1 minute
-      limit: 100, // 100 requests per minute
-    }]),
+    // Rate Limiting - Dynamic configuration
+    ThrottlerModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => [{
+        ttl: config.get('THROTTLE_TTL', 60) * 1000,
+        limit: config.get('THROTTLE_LIMIT', 100),
+      }],
+    }),
 
     // Infrastructure
     PrismaModule,
@@ -44,6 +53,8 @@ import { UploadModule } from './api/upload/upload.module';
     SmsModule,
     EmailModule,
     StorageModule,
+    AuditModule,
+    WebhookModule,
 
     // Feature Modules
     HealthModule,
@@ -60,5 +71,6 @@ import { UploadModule } from './api/upload/upload.module';
     StakingModule,
     UploadModule,
   ],
+  providers: [CleanupService],
 })
 export class AppModule {}

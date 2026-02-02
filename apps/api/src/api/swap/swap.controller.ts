@@ -1,4 +1,5 @@
 import { Controller, Get, Post, Body, Query, UseGuards, Req, ParseIntPipe, DefaultValuePipe } from '@nestjs/common';
+import { Request } from 'express';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse, ApiQuery } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { SwapService, SwapQuote } from './swap.service';
@@ -35,8 +36,8 @@ export class SwapController {
   @Post('execute')
   @ApiOperation({ summary: 'Execute swap with quote' })
   @ApiResponse({ status: 200, type: SwapExecuteResponse })
-  executeSwap(@Req() req: any, @Body() body: ExecuteSwapDto) {
-    return this.swapService.executeSwap(req.user.id, body.quoteId);
+  executeSwap(@Req() req: Request, @Body() body: ExecuteSwapDto) {
+    return this.swapService.executeSwap(req.user!.id, body.quoteId);
   }
 
   @Get('history')
@@ -44,10 +45,10 @@ export class SwapController {
   @ApiQuery({ name: 'page', required: false, example: 1 })
   @ApiQuery({ name: 'limit', required: false, example: 20 })
   getSwapHistory(
-    @Req() req: any,
+    @Req() req: Request,
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('limit', new DefaultValuePipe(20), ParseIntPipe) limit: number,
   ) {
-    return this.swapService.getSwapHistory(req.user.id, page, limit);
+    return this.swapService.getSwapHistory(req.user!.id, page, limit);
   }
 }

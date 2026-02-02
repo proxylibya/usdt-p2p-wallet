@@ -1,11 +1,18 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
 import { PrismaService } from '../../infrastructure/database/prisma.service';
+import { RedisService } from '../../infrastructure/cache/redis.service';
+import { SmsService } from '../sms/sms.service';
 import { Decimal } from '@prisma/client/runtime/library';
 import { normalizePhoneNumber } from '../../shared/utils/phone.util';
+import { generateOtp, hashOtp, verifyOtp, maskSensitiveData, generateTransactionId } from '../../shared/utils/crypto.util';
 
 @Injectable()
 export class WalletsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private redis: RedisService,
+    private smsService: SmsService,
+  ) {}
 
   async getUserWallets(userId: string, accountType: 'SPOT' | 'FUNDING' = 'SPOT') {
     return this.prisma.wallet.findMany({
@@ -73,7 +80,19 @@ export class WalletsService {
   }
 
   // [DEV ONLY] Add test balance to user wallet
+  // 🔒 SECURITY: This method should ONLY be used in development
   async addTestBalance(userId: string, asset: string, amount: number) {
+    // Double-check environment for safety
+    if (process.env.NODE_ENV === 'production') {
+      throw new BadRequestException('Test balance is disabled in production');
+    }
+
+    // Limit test balance amount
+    const MAX_TEST_BALANCE = 10000;
+    if (amount > MAX_TEST_BALANCE) {
+      throw new BadRequestException(`Test balance cannot exceed ${MAX_TEST_BALANCE}`);
+    }
+
     const wallet = await this.prisma.wallet.findFirst({
       where: { userId, asset, accountType: 'SPOT' },
     });
@@ -251,8 +270,21 @@ export class WalletsService {
     });
   }
 
-  async createTransaction(data: any) {
-    return this.prisma.transaction.create({ data });
+  async createTransaction(data: {
+    userId: string;
+    type: string;
+    asset: string;
+    amount: number;
+    fee?: number;
+    status?: string;
+    fromAddress?: string;
+    toAddress?: string;
+    txHash?: string;
+    network?: string;
+    metadata?: Record<string, unknown>;
+    note?: string;
+  }) {
+    return this.prisma.transaction.create({ data: data as any });
   }
 
   async getPortfolioValue(userId: string) {
@@ -317,7 +349,19 @@ export class WalletsService {
     };
   }
 
+  /**
+   * 🚨 IMPORTANT: This generates PLACEHOLDER addresses for development/demo purposes.
+   * In PRODUCTION, you MUST integrate with a real wallet provider (e.g., Fireblocks, BitGo, etc.)
+   * to generate actual blockchain addresses that can receive deposits.
+   * 
+   * TODO: Replace with real wallet integration before production deployment
+   */
   private generateDepositAddress(network: string): string {
+    // 🔒 PRODUCTION WARNING: Log warning in production
+    if (process.env.NODE_ENV === 'production') {
+      console.warn('⚠️ WARNING: Using placeholder deposit addresses in production! Integrate real wallet provider.');
+    }
+
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz123456789';
     let address = '';
     let prefix = '';
@@ -466,7 +510,8 @@ export class WalletsService {
 
     const digits = trimmed.replace(/[^\d+]/g, '');
     if (digits) {
-      const normalized = normalizePhoneNumber(trimmed, 'LY');
+      // 🌍 GLOBAL: Auto-detect country from phone number
+      const normalized = normalizePhoneNumber(trimmed, 'GLOBAL');
       if (normalized.full) {
         criteria.push({ phone: normalized.full });
       }
@@ -488,5 +533,301 @@ export class WalletsService {
       ETH: { ERC20: 0.003, BEP20: 0.0005, 'Arbitrum One': 0.0003 },
     };
     return fees[asset]?.[network] || 1;
+  }
+
+  // ============================================
+  // 🔒 SECURE 2-STEP WITHDRAWAL WITH OTP
+  // ============================================
+
+  /**
+   * 🔒 ENTERPRISE-GRADE SECURE WITHDRAWAL - Step 1
+   * Validates request, acquires lock, generates secure OTP, and sends notification
+   */
+  async initiateSecureWithdrawal(userId: string, data: {
+    asset: string;
+    network: string;
+    address: string;
+    amount: number;
+    memo?: string;
+  }) {
+    // 🔒 Acquire distributed lock to prevent concurrent withdrawal requests
+    const lockKey = `withdrawal:${userId}`;
+    const lockValue = await this.redis.acquireLock(lockKey, 60); // 60 second lock
+    
+    if (!lockValue) {
+      throw new BadRequestException('Another withdrawal is being processed. Please wait.');
+    }
+
+    try {
+      // Get user for phone number
+      const user = await this.prisma.user.findUnique({ where: { id: userId } });
+      if (!user) throw new NotFoundException('User not found');
+      if (user.isBanned) throw new BadRequestException('Account is suspended');
+
+      // Validate wallet balance
+      const wallet = await this.prisma.wallet.findFirst({
+        where: { userId, asset: data.asset, network: data.network },
+      });
+
+      if (!wallet || new Decimal(wallet.balance).lessThan(data.amount)) {
+        throw new BadRequestException('Insufficient balance');
+      }
+
+      const fee = this.calculateWithdrawalFee(data.asset, data.network);
+      const totalAmount = new Decimal(data.amount).add(fee);
+
+      if (new Decimal(wallet.balance).lessThan(totalAmount)) {
+        throw new BadRequestException('Insufficient balance for fee');
+      }
+
+      // Validate address
+      const addressValidation = await this.validateAddress(data.address, data.network);
+      if (!addressValidation.valid) {
+        throw new BadRequestException(addressValidation.message);
+      }
+
+      // 🔐 Generate cryptographically secure OTP
+      const otp = generateOtp(6);
+      const otpHash = hashOtp(otp); // Secure hash with salt
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+      const transactionId = generateTransactionId();
+
+      // Create pending withdrawal request with secure OTP hash
+      const withdrawalRequest = await this.prisma.transaction.create({
+        data: {
+          userId,
+          type: 'WITHDRAW',
+          asset: data.asset,
+          network: data.network,
+          amount: data.amount,
+          fee,
+          toAddress: data.address,
+          status: 'PENDING',
+          note: data.memo,
+          metadata: {
+            otpHash, // Securely hashed OTP
+            otpExpiresAt: expiresAt.toISOString(),
+            requiresOtp: true,
+            otpVerified: false,
+            transactionId,
+            initiatedAt: new Date().toISOString(),
+            ipAddress: 'system', // Should be passed from controller
+          } as any,
+        },
+      });
+
+      // Store OTP in Redis for quick verification (encrypted)
+      await this.redis.set(
+        `withdrawal:otp:${withdrawalRequest.id}`,
+        otpHash,
+        600 // 10 minutes
+      );
+
+      // 📤 Send OTP via SMS
+      const userLanguage = (user as any).language === 'ar' ? 'ar' : 'en';
+      const smsSent = await this.smsService.sendWithdrawalOtp(
+        user.phone,
+        otp,
+        data.amount,
+        data.asset,
+        userLanguage
+      );
+      
+      if (!smsSent && process.env.NODE_ENV === 'production') {
+        // In production, fail if SMS couldn't be sent
+        throw new BadRequestException('Failed to send verification code. Please try again.');
+      }
+      
+      // 📝 Log for development only
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`[DEV] Withdrawal OTP for ${maskSensitiveData(user.phone, 3)}: ${otp}`);
+      }
+
+      return {
+        requestId: withdrawalRequest.id,
+        transactionId,
+        message: 'OTP sent to your registered phone number',
+        expiresAt,
+        amount: data.amount,
+        fee,
+        total: totalAmount.toNumber(),
+        address: maskSensitiveData(data.address, 6), // Mask in response
+        network: data.network,
+      };
+    } finally {
+      // 🔓 Always release the lock
+      await this.redis.releaseLock(lockKey, lockValue);
+    }
+  }
+
+  /**
+   * 🔒 ENTERPRISE-GRADE SECURE WITHDRAWAL - Step 2
+   * Verifies OTP securely, acquires lock, and processes withdrawal atomically
+   */
+  async confirmSecureWithdrawal(userId: string, requestId: string, otpInput: string) {
+    // 🔒 Acquire distributed lock for this specific withdrawal
+    const lockKey = `withdrawal:confirm:${requestId}`;
+    const lockValue = await this.redis.acquireLock(lockKey, 30);
+    
+    if (!lockValue) {
+      throw new BadRequestException('Withdrawal confirmation in progress. Please wait.');
+    }
+
+    try {
+      // Find the pending withdrawal with OTP requirement
+      const transaction = await this.prisma.transaction.findFirst({
+        where: {
+          id: requestId,
+          userId,
+          status: 'PENDING',
+        },
+      });
+
+      if (!transaction) {
+        throw new BadRequestException('Withdrawal request not found or already processed');
+      }
+
+      const metadata = transaction.metadata as any;
+      
+      // Check if this requires OTP and hasn't been verified
+      if (!metadata?.requiresOtp || metadata?.otpVerified) {
+        throw new BadRequestException('Invalid withdrawal request');
+      }
+      
+      // Check OTP expiration
+      if (new Date(metadata.otpExpiresAt) < new Date()) {
+        await this.prisma.transaction.update({
+          where: { id: requestId },
+          data: { status: 'FAILED' },
+        });
+        // Clean up Redis
+        await this.redis.del(`withdrawal:otp:${requestId}`);
+        throw new BadRequestException('OTP has expired. Please request a new withdrawal.');
+      }
+
+      // 🔐 Securely verify OTP using constant-time comparison
+      const isValidOtp = verifyOtp(otpInput, metadata.otpHash);
+      
+      if (!isValidOtp) {
+        // Track failed attempts
+        const failedKey = `withdrawal:failed:${userId}`;
+        const failedAttempts = await this.redis.increment(failedKey);
+        await this.redis.expire(failedKey, 3600); // 1 hour window
+        
+        if (failedAttempts >= 5) {
+          // Block user temporarily
+          await this.redis.set(`withdrawal:blocked:${userId}`, '1', 3600);
+          throw new BadRequestException('Too many failed attempts. Account temporarily locked for withdrawals.');
+        }
+        
+        throw new BadRequestException(`Invalid OTP code. ${5 - failedAttempts} attempts remaining.`);
+      }
+
+      // Reset failed attempts on success
+      await this.redis.del(`withdrawal:failed:${userId}`);
+
+      // Get wallet and verify balance again (double-check)
+      const wallet = await this.prisma.wallet.findFirst({
+        where: { userId, asset: transaction.asset, network: transaction.network || 'TRC20' },
+      });
+
+      const totalAmount = new Decimal(transaction.amount).add(transaction.fee);
+
+      if (!wallet || new Decimal(wallet.balance).lessThan(totalAmount)) {
+        throw new BadRequestException('Insufficient balance');
+      }
+
+      // 🔄 Process withdrawal atomically
+      const result = await this.prisma.$transaction(async (tx) => {
+        // Deduct balance with atomic check
+        const deductResult = await tx.wallet.updateMany({
+          where: { 
+            id: wallet.id, 
+            balance: { gte: totalAmount.toNumber() } 
+          },
+          data: { balance: { decrement: totalAmount.toNumber() } },
+        });
+
+        if (deductResult.count === 0) {
+          throw new BadRequestException('Insufficient balance (concurrent modification)');
+        }
+
+        // Update transaction status to PROCESSING
+        const updatedTx = await tx.transaction.update({
+          where: { id: requestId },
+          data: { 
+            status: 'PROCESSING',
+            metadata: {
+              ...metadata,
+              otpVerified: true,
+              otpVerifiedAt: new Date().toISOString(),
+              processedAt: new Date().toISOString(),
+            } as any,
+          },
+        });
+
+        // Create notification for user
+        await tx.notification.create({
+          data: {
+            userId,
+            type: 'TRANSACTION',
+            title: 'Withdrawal Processing',
+            message: `Your withdrawal of ${transaction.amount} ${transaction.asset} is being processed.`,
+          },
+        });
+
+        return updatedTx;
+      });
+
+      // Clean up Redis
+      await this.redis.del(`withdrawal:otp:${requestId}`);
+
+      return {
+        transactionId: requestId,
+        transactionRef: metadata.transactionId,
+        message: 'Withdrawal confirmed and is being processed',
+        status: 'PROCESSING',
+        amount: transaction.amount,
+        fee: transaction.fee,
+        total: totalAmount.toNumber(),
+        estimatedTime: '10-30 minutes',
+      };
+    } finally {
+      // 🔓 Always release the lock
+      await this.redis.releaseLock(lockKey, lockValue);
+    }
+  }
+
+  /**
+   * Check if user is blocked from withdrawals
+   */
+  async isWithdrawalBlocked(userId: string): Promise<boolean> {
+    const blocked = await this.redis.get(`withdrawal:blocked:${userId}`);
+    return !!blocked;
+  }
+
+  /**
+   * Get withdrawal status
+   */
+  async getWithdrawalStatus(userId: string, transactionId: string) {
+    const transaction = await this.prisma.transaction.findFirst({
+      where: { id: transactionId, userId, type: 'WITHDRAW' },
+    });
+
+    if (!transaction) {
+      throw new NotFoundException('Withdrawal not found');
+    }
+
+    return {
+      id: transaction.id,
+      status: transaction.status,
+      amount: transaction.amount,
+      fee: transaction.fee,
+      asset: transaction.asset,
+      network: transaction.network,
+      address: maskSensitiveData(transaction.toAddress || '', 6),
+      createdAt: transaction.createdAt,
+      txHash: transaction.txHash,
+    };
   }
 }

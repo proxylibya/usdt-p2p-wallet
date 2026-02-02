@@ -74,14 +74,21 @@ export class P2PService {
 
     // Use transaction to ensure atomicity
     return this.prisma.$transaction(async (tx) => {
-      // Lock seller's funds (move from balance to lockedBalance)
-      await tx.wallet.update({
-        where: { id: sellerWallet.id },
+      // Lock seller's funds with atomic balance check
+      const updateResult = await tx.wallet.updateMany({
+        where: { 
+          id: sellerWallet.id,
+          balance: { gte: amount }, // Atomic check to prevent race conditions
+        },
         data: {
           balance: { decrement: amount },
           lockedBalance: { increment: amount },
         },
       });
+
+      if (updateResult.count === 0) {
+        throw new BadRequestException('Seller has insufficient balance (concurrent modification)');
+      }
 
       // Create the trade
       const trade = await tx.p2PTrade.create({
@@ -118,15 +125,25 @@ export class P2PService {
     });
   }
 
-  async resolveDispute(tradeId: string, userId: string, resolution: 'buyer_wins' | 'seller_wins') {
+  /**
+   * 🔒 SECURITY: Dispute resolution should ONLY be done by Admin
+   * This method is kept for backward compatibility but should be called from AdminService
+   * @param tradeId - Trade ID
+   * @param adminId - Admin user ID (for audit purposes)
+   * @param resolution - Winner decision
+   * @param isAdminCall - Must be true, enforced for security
+   */
+  async resolveDispute(tradeId: string, adminId: string, resolution: 'buyer_wins' | 'seller_wins', isAdminCall: boolean = false) {
+    // 🔒 SECURITY: Only allow admin calls
+    if (!isAdminCall) {
+      throw new BadRequestException('Dispute resolution can only be performed by administrators');
+    }
+
     const trade = await this.prisma.p2PTrade.findUnique({ 
       where: { id: tradeId },
       include: { offer: true },
     });
     if (!trade) throw new NotFoundException('Trade not found');
-    if (trade.buyerId !== userId && trade.sellerId !== userId) {
-      throw new BadRequestException('Not authorized');
-    }
     if (trade.status !== 'DISPUTED') {
       throw new BadRequestException('Trade is not in dispute status');
     }

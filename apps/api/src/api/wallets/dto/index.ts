@@ -59,6 +59,51 @@ export class WithdrawDto {
   memo?: string;
 }
 
+// 🔒 SECURITY: Two-step withdrawal with OTP confirmation
+export class WithdrawRequestDto {
+  @ApiProperty({ example: 'USDT' })
+  @IsString()
+  @IsNotEmpty()
+  asset: string;
+
+  @ApiProperty({ example: 'TRC20' })
+  @IsString()
+  @IsNotEmpty()
+  network: string;
+
+  @ApiProperty({ example: 'TRx1234567890abcdef...' })
+  @IsString()
+  @IsNotEmpty()
+  address: string;
+
+  @ApiProperty({ example: 100, minimum: 0.01 })
+  @IsNumber()
+  @IsPositive()
+  @Min(0.01)
+  @Max(1000000)
+  @Type(() => Number)
+  amount: number;
+
+  @ApiPropertyOptional({ example: 'Memo or tag' })
+  @IsOptional()
+  @IsString()
+  memo?: string;
+}
+
+export class WithdrawConfirmDto {
+  @ApiProperty({ description: 'Withdrawal request ID from first step' })
+  @IsString()
+  @IsNotEmpty()
+  @IsUUID()
+  requestId: string;
+
+  @ApiProperty({ description: 'OTP code sent to user phone', example: '123456' })
+  @IsString()
+  @IsNotEmpty()
+  @Matches(/^\d{6}$/, { message: 'OTP must be 6 digits' })
+  otp: string;
+}
+
 export class TransferDto {
   @ApiProperty({ example: 'USDT' })
   @IsString()

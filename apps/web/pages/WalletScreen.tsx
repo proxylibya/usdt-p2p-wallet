@@ -364,8 +364,28 @@ const WalletScreen: React.FC = () => {
                             </div>
                         )}
 
-                        {activeTab === 'Overview' && totalBalance > 0 && (
-                            <OverviewDashboard wallets={wallets} />
+                        {activeTab === 'Overview' && (
+                            <>
+                                {totalBalance > 0 ? (
+                                    <OverviewDashboard wallets={wallets} />
+                                ) : (
+                                    <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
+                                        <div className="bg-background-secondary rounded-full p-6 mb-4">
+                                            <PieChart className="w-12 h-12 text-text-secondary/50" />
+                                        </div>
+                                        <h3 className="text-xl font-bold text-text-primary mb-2">{t('no_data_available')}</h3>
+                                        <p className="text-sm text-text-secondary mb-6 max-w-sm">
+                                            {t('overview_empty_message') || 'Start trading to see your portfolio overview and analytics'}
+                                        </p>
+                                        <button 
+                                            onClick={() => handleNavigate('/markets')}
+                                            className={`px-6 py-3 rounded-xl font-bold text-sm transition-all shadow-md ${primaryColor === 'brand-yellow' ? 'bg-primary-gold text-background-primary hover:bg-primary-gold/90' : 'bg-primary-green text-background-primary hover:bg-primary-green/90'}`}
+                                        >
+                                            {t('explore_markets') || 'Explore Markets'}
+                                        </button>
+                                    </div>
+                                )}
+                            </>
                         )}
 
                         {activeTab === 'Funding' ? (

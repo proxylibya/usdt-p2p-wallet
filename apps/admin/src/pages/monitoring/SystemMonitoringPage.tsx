@@ -130,10 +130,10 @@ const SystemMonitoringPage: React.FC = () => {
             <span className="text-text-secondary text-sm">CPU Usage</span>
           </div>
           <div className="flex items-end gap-2">
-            <span className="text-2xl font-bold text-text-primary">{health.metrics.cpuUsage}%</span>
+            <span className="text-2xl font-bold text-text-primary">{health.metrics?.cpuUsage ?? 0}%</span>
           </div>
           <div className="mt-2 h-2 bg-background-tertiary rounded-full overflow-hidden">
-            <div className={`h-full ${getMetricColor(health.metrics.cpuUsage)} transition-all`} style={{ width: `${health.metrics.cpuUsage}%` }} />
+            <div className={`h-full ${getMetricColor(health.metrics?.cpuUsage ?? 0)} transition-all`} style={{ width: `${health.metrics?.cpuUsage ?? 0}%` }} />
           </div>
         </div>
 
@@ -145,10 +145,10 @@ const SystemMonitoringPage: React.FC = () => {
             <span className="text-text-secondary text-sm">Memory</span>
           </div>
           <div className="flex items-end gap-2">
-            <span className="text-2xl font-bold text-text-primary">{health.metrics.memoryUsage}%</span>
+            <span className="text-2xl font-bold text-text-primary">{health.metrics?.memoryUsage ?? 0}%</span>
           </div>
           <div className="mt-2 h-2 bg-background-tertiary rounded-full overflow-hidden">
-            <div className={`h-full ${getMetricColor(health.metrics.memoryUsage)} transition-all`} style={{ width: `${health.metrics.memoryUsage}%` }} />
+            <div className={`h-full ${getMetricColor(health.metrics?.memoryUsage ?? 0)} transition-all`} style={{ width: `${health.metrics?.memoryUsage ?? 0}%` }} />
           </div>
         </div>
 
@@ -160,10 +160,10 @@ const SystemMonitoringPage: React.FC = () => {
             <span className="text-text-secondary text-sm">Disk Usage</span>
           </div>
           <div className="flex items-end gap-2">
-            <span className="text-2xl font-bold text-text-primary">{health.metrics.diskUsage}%</span>
+            <span className="text-2xl font-bold text-text-primary">{health.metrics?.diskUsage ?? 0}%</span>
           </div>
           <div className="mt-2 h-2 bg-background-tertiary rounded-full overflow-hidden">
-            <div className={`h-full ${getMetricColor(health.metrics.diskUsage)} transition-all`} style={{ width: `${health.metrics.diskUsage}%` }} />
+            <div className={`h-full ${getMetricColor(health.metrics?.diskUsage ?? 0)} transition-all`} style={{ width: `${health.metrics?.diskUsage ?? 0}%` }} />
           </div>
         </div>
 
@@ -174,7 +174,7 @@ const SystemMonitoringPage: React.FC = () => {
             </div>
             <span className="text-text-secondary text-sm">Connections</span>
           </div>
-          <span className="text-2xl font-bold text-text-primary">{health.metrics.activeConnections}</span>
+          <span className="text-2xl font-bold text-text-primary">{health.metrics?.activeConnections ?? 0}</span>
         </div>
 
         <div className="stat-card">
@@ -184,7 +184,7 @@ const SystemMonitoringPage: React.FC = () => {
             </div>
             <span className="text-text-secondary text-sm">Requests/min</span>
           </div>
-          <span className="text-2xl font-bold text-text-primary">{health.metrics.requestsPerMinute.toLocaleString()}</span>
+          <span className="text-2xl font-bold text-text-primary">{(health.metrics?.requestsPerMinute ?? 0).toLocaleString()}</span>
         </div>
       </div>
 
@@ -192,7 +192,7 @@ const SystemMonitoringPage: React.FC = () => {
       <div className="bg-background-secondary rounded-xl border border-border-divider p-6">
         <h3 className="text-lg font-semibold text-text-primary mb-4">Service Status</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {health.services.map((service) => (
+          {(health.services ?? []).map((service) => (
             <div key={service.name} className="flex items-center justify-between p-4 bg-background-tertiary rounded-lg">
               <div className="flex items-center gap-3">
                 <div className={`w-3 h-3 rounded-full ${service.status === 'online' ? 'bg-status-success' : service.status === 'degraded' ? 'bg-status-warning' : 'bg-status-error'}`} />
@@ -213,14 +213,14 @@ const SystemMonitoringPage: React.FC = () => {
       {/* Recent Errors */}
       <div className="bg-background-secondary rounded-xl border border-border-divider p-6">
         <h3 className="text-lg font-semibold text-text-primary mb-4">Recent Errors</h3>
-        {health.recentErrors.length === 0 ? (
+        {(health.recentErrors ?? []).length === 0 ? (
           <div className="text-center py-8">
             <CheckCircle className="w-12 h-12 text-status-success mx-auto mb-2" />
             <p className="text-text-secondary">No recent errors</p>
           </div>
         ) : (
           <div className="space-y-3">
-            {health.recentErrors.map((err) => (
+            {(health.recentErrors ?? []).map((err) => (
               <div key={err.id} className="flex items-center justify-between p-4 bg-status-error/10 border border-status-error/30 rounded-lg">
                 <div className="flex items-center gap-3">
                   <AlertTriangle className="w-5 h-5 text-status-error" />

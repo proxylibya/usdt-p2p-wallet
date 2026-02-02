@@ -90,10 +90,14 @@ export const getCountryByDialCode = (dialCode: string): CountryDialCode | null =
  */
 export const normalizePhoneNumber = (
   phone: string,
-  defaultCountryCode: string = 'LY'
+  defaultCountryCode: string = 'GLOBAL'
 ): NormalizedPhone => {
-  const defaultCountry = COUNTRY_DIAL_CODES.find(c => c.code === defaultCountryCode) 
-    || COUNTRY_DIAL_CODES.find(c => c.code === 'LY')!;
+  // 🌍 GLOBAL: If GLOBAL is passed, don't assume any specific country
+  // The number must include country code (+ or 00 prefix)
+  const defaultCountry = defaultCountryCode === 'GLOBAL' 
+    ? { code: 'GLOBAL', dialCode: '' }
+    : (COUNTRY_DIAL_CODES.find(c => c.code === defaultCountryCode) 
+      || COUNTRY_DIAL_CODES.find(c => c.code === 'LY')!);
 
   const emptyResult: NormalizedPhone = {
     full: '',

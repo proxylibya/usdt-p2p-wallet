@@ -46,6 +46,7 @@ import CreateApiKeyPage from './pages/api-keys/CreateApiKeyPage';
 import SmsProvidersPage from './pages/sms/SmsProvidersPage';
 import SmsProviderFormPage from './pages/sms/SmsProviderFormPage';
 import SmsLogsPage from './pages/sms/SmsLogsPage';
+import SiteConfigPage from './pages/site-config/SiteConfigPage';
 
 function App() {
   return (
@@ -131,6 +132,7 @@ function App() {
               <Route path="sms/logs" element={<SmsLogsPage />} />
 
               <Route path="settings" element={<SettingsPage />} />
+              <Route path="site-config" element={<SiteConfigPage />} />
               <Route path="logs" element={<LogsPage />} />
             </Route>
             

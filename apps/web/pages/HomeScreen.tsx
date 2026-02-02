@@ -8,6 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import { useLiveData } from '../context/LiveDataContext';
 import { useNotifications } from '../context/NotificationContext';
 import { useAppSettings } from '../context/SettingsContext';
+import { useSiteConfig } from '../context/SiteConfigContext';
 import { TransactionList } from '../components/TransactionList';
 import { BellIcon } from '../components/icons/BellIcon';
 import ProfileDropdown from '../components/ProfileDropdown';
@@ -538,6 +539,7 @@ const GuestHero: React.FC = () => {
     const { t, detectedCountry, language } = useLanguage();
     const navigate = useNavigate();
     const { primaryColor } = useTheme();
+    const { config, getPaymentMethodsByCountry } = useSiteConfig();
     
     // 1. Detect User's Region (Priority: Detected IP > Default 'LY')
     const targetCountryCode = detectedCountry || 'LY'; 
@@ -550,13 +552,28 @@ const GuestHero: React.FC = () => {
     
     const displayCountryName = isArabic ? countryData.name_ar : countryData.name;
     const displayCurrency = countryData.currency;
+    
+    // Get app name from config
+    const appName = config?.appName || 'UbinPay';
+    const appTagline = isArabic ? (config?.appTaglineAr || t('hero_tagline')) : (config?.appTagline || t('hero_tagline'));
 
-    // 4. Dynamic Payment Methods based on Location
+    // 4. Dynamic Payment Methods - Use API config with fallback to static data
     const relevantMethods = useMemo(() => {
+        // Try to get from API config first
+        const apiMethods = getPaymentMethodsByCountry(targetCountryCode);
+        if (apiMethods && apiMethods.length > 0) {
+            return apiMethods.map(m => ({
+                key: m.key,
+                label: isArabic && m.labelAr ? m.labelAr : m.label,
+                scope: m.scope as 'local' | 'global',
+                countryCode: m.countryCode || undefined,
+            }));
+        }
+        // Fallback to static data
         const local = ALL_PAYMENT_METHODS.filter(m => m.countryCode === targetCountryCode);
         if (local.length > 0) return local;
         return ALL_PAYMENT_METHODS.filter(m => m.scope === 'global');
-    }, [targetCountryCode]);
+    }, [targetCountryCode, getPaymentMethodsByCountry, isArabic]);
 
     return (
         <div className="relative px-4 pt-10 pb-8 text-center overflow-hidden">
@@ -586,10 +603,10 @@ const GuestHero: React.FC = () => {
                         </svg>
                     </div>
                     <h1 className="text-5xl sm:text-6xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-brand-yellow via-yellow-300 to-brand-yellow drop-shadow-sm mb-2">
-                        UbinPay
+                        {appName}
                     </h1>
                     <p className="text-text-secondary text-base sm:text-lg font-medium tracking-wide max-w-xl mx-auto leading-relaxed">
-                        {t('hero_tagline')}
+                        {appTagline}
                     </p>
                 </div>
 
@@ -785,17 +802,30 @@ const GuestFeatures: React.FC = () => {
 };
 
 const BankPartners: React.FC = () => {
-    const { t, detectedCountry } = useLanguage();
+    const { t, detectedCountry, language } = useLanguage();
     const { user } = useAuth();
+    const { getPaymentMethodsByCountry } = useSiteConfig();
+    const isArabic = language === 'ar';
     
     // Explicit priority: User's country -> Detected Country -> Libya (Default)
     const targetCountry = user?.countryCode || detectedCountry || 'LY';
     
     const localMethods = useMemo(() => {
+        // Try to get from API config first
+        const apiMethods = getPaymentMethodsByCountry(targetCountry);
+        if (apiMethods && apiMethods.length > 0) {
+            return apiMethods.map(m => ({
+                key: m.key,
+                label: isArabic && m.labelAr ? m.labelAr : m.label,
+                scope: m.scope as 'local' | 'global',
+                countryCode: m.countryCode || undefined,
+            }));
+        }
+        // Fallback to static data
         let methods = ALL_PAYMENT_METHODS.filter(m => m.countryCode === targetCountry);
         if (methods.length === 0) methods = ALL_PAYMENT_METHODS.filter(m => m.scope === 'global');
         return methods;
-    }, [targetCountry]);
+    }, [targetCountry, getPaymentMethodsByCountry, isArabic]);
 
     if (localMethods.length === 0) return null;
 

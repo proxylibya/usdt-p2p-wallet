@@ -741,4 +741,164 @@ export class AdminController {
   revokeApiKey(@Param('id') id: string) {
     return this.adminService.revokeApiKey(id);
   }
+
+  // ========== SITE CONFIGURATION ==========
+
+  @Get('site-config')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Get site configuration' })
+  getSiteConfig() {
+    return this.adminService.getSiteConfig();
+  }
+
+  @Put('site-config')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Update site configuration' })
+  updateSiteConfig(@Request() req: any, @Body() body: any) {
+    return this.adminService.updateSiteConfig(body, req.user?.sub);
+  }
+
+  // ========== PAYMENT METHODS CONFIG (Site Config) ==========
+
+  @Get('config/payment-methods')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Get payment method configurations for site' })
+  getPaymentMethodConfigs(
+    @Query('countryCode') countryCode?: string,
+    @Query('scope') scope?: string,
+    @Query('isActive') isActive?: string,
+  ) {
+    return this.adminService.getPaymentMethodConfigs({
+      countryCode,
+      scope,
+      isActive: isActive === 'true' ? true : isActive === 'false' ? false : undefined,
+    });
+  }
+
+  @Post('config/payment-methods')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Create payment method configuration' })
+  createPaymentMethodConfig(@Body() body: any) {
+    return this.adminService.createPaymentMethodConfig(body);
+  }
+
+  @Put('config/payment-methods/:id')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Update payment method configuration' })
+  updatePaymentMethodConfig(@Param('id') id: string, @Body() body: any) {
+    return this.adminService.updatePaymentMethodConfig(id, body);
+  }
+
+  @Delete('config/payment-methods/:id')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Delete payment method configuration' })
+  deletePaymentMethodConfig(@Param('id') id: string) {
+    return this.adminService.deletePaymentMethodConfig(id);
+  }
+
+  @Patch('config/payment-methods/:id/status')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Toggle payment method config status' })
+  togglePaymentMethodConfigStatus(@Param('id') id: string, @Body() body: { isActive: boolean }) {
+    return this.adminService.togglePaymentMethodConfigStatus(id, body.isActive);
+  }
+
+  // ========== CURRENCY CONFIG ==========
+
+  @Get('currencies')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Get currency configurations' })
+  getCurrencyConfigs(@Query('isActive') isActive?: string) {
+    return this.adminService.getCurrencyConfigs({
+      isActive: isActive === 'true' ? true : isActive === 'false' ? false : undefined,
+    });
+  }
+
+  @Post('currencies')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Create currency configuration' })
+  createCurrencyConfig(@Body() body: any) {
+    return this.adminService.createCurrencyConfig(body);
+  }
+
+  @Put('currencies/:id')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Update currency configuration' })
+  updateCurrencyConfig(@Param('id') id: string, @Body() body: any) {
+    return this.adminService.updateCurrencyConfig(id, body);
+  }
+
+  @Delete('currencies/:id')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Delete currency configuration' })
+  deleteCurrencyConfig(@Param('id') id: string) {
+    return this.adminService.deleteCurrencyConfig(id);
+  }
+
+  // ========== BANNER CONFIG ==========
+
+  @Get('banners')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Get banner configurations' })
+  getBannerConfigs(
+    @Query('position') position?: string,
+    @Query('isActive') isActive?: string,
+  ) {
+    return this.adminService.getBannerConfigs({
+      position,
+      isActive: isActive === 'true' ? true : isActive === 'false' ? false : undefined,
+    });
+  }
+
+  @Post('banners')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Create banner configuration' })
+  createBannerConfig(@Body() body: any) {
+    return this.adminService.createBannerConfig(body);
+  }
+
+  @Put('banners/:id')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Update banner configuration' })
+  updateBannerConfig(@Param('id') id: string, @Body() body: any) {
+    return this.adminService.updateBannerConfig(id, body);
+  }
+
+  @Delete('banners/:id')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Delete banner configuration' })
+  deleteBannerConfig(@Param('id') id: string) {
+    return this.adminService.deleteBannerConfig(id);
+  }
+
+  @Patch('banners/:id/status')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Toggle banner status' })
+  toggleBannerStatus(@Param('id') id: string, @Body() body: { isActive: boolean }) {
+    return this.adminService.toggleBannerStatus(id, body.isActive);
+  }
+
+  // ========== PUBLIC CONFIG (No Auth Required) ==========
+
+  @Get('public/config')
+  @ApiOperation({ summary: 'Get public site configuration for mobile app' })
+  getPublicSiteConfig() {
+    return this.adminService.getPublicSiteConfig();
+  }
 }

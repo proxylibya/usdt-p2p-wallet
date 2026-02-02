@@ -63,9 +63,93 @@ export class SmsService {
 
   // --- Sending Logic ---
 
+  /**
+   * Send OTP for login/registration
+   */
   async sendOtp(phone: string, otp: string): Promise<boolean> {
     const message = `Your verification code is: ${otp}. Valid for 5 minutes.`;
     return this.sendSms(phone, message);
+  }
+
+  /**
+   * 🔒 Send OTP for withdrawal confirmation - Enterprise grade
+   */
+  async sendWithdrawalOtp(
+    phone: string, 
+    otp: string, 
+    amount: number, 
+    asset: string,
+    language: 'en' | 'ar' = 'en'
+  ): Promise<boolean> {
+    const templates = {
+      en: `⚠️ WITHDRAWAL ALERT\nCode: ${otp}\nAmount: ${amount} ${asset}\n\nDO NOT share this code. Valid for 10 minutes.\n\nIf you didn't request this, contact support immediately.`,
+      ar: `⚠️ تنبيه سحب\nالرمز: ${otp}\nالمبلغ: ${amount} ${asset}\n\nلا تشارك هذا الرمز. صالح لمدة 10 دقائق.\n\nإذا لم تطلب هذا، تواصل مع الدعم فوراً.`,
+    };
+    
+    const message = templates[language] || templates.en;
+    
+    this.logger.log(`Sending withdrawal OTP to ${phone.slice(0, 5)}****`);
+    
+    const success = await this.sendSms(phone, message);
+    
+    if (!success) {
+      this.logger.error(`Failed to send withdrawal OTP to ${phone.slice(0, 5)}****`);
+    }
+    
+    return success;
+  }
+
+  /**
+   * Send transaction notification
+   */
+  async sendTransactionNotification(
+    phone: string,
+    type: 'deposit' | 'withdrawal' | 'transfer',
+    amount: number,
+    asset: string,
+    status: 'completed' | 'pending' | 'failed',
+    language: 'en' | 'ar' = 'en'
+  ): Promise<boolean> {
+    const statusText = {
+      en: { completed: 'Completed', pending: 'Pending', failed: 'Failed' },
+      ar: { completed: 'مكتمل', pending: 'قيد الانتظار', failed: 'فشل' },
+    };
+    
+    const typeText = {
+      en: { deposit: 'Deposit', withdrawal: 'Withdrawal', transfer: 'Transfer' },
+      ar: { deposit: 'إيداع', withdrawal: 'سحب', transfer: 'تحويل' },
+    };
+
+    const templates = {
+      en: `${typeText.en[type]} ${statusText.en[status]}\nAmount: ${amount} ${asset}\n\nCheck your app for details.`,
+      ar: `${typeText.ar[type]} ${statusText.ar[status]}\nالمبلغ: ${amount} ${asset}\n\nتحقق من التطبيق للتفاصيل.`,
+    };
+
+    return this.sendSms(phone, templates[language] || templates.en);
+  }
+
+  /**
+   * Send security alert
+   */
+  async sendSecurityAlert(
+    phone: string,
+    alertType: 'login' | 'password_change' | 'suspicious_activity',
+    language: 'en' | 'ar' = 'en'
+  ): Promise<boolean> {
+    const templates = {
+      en: {
+        login: '🔐 New login detected on your account. If this wasn\'t you, secure your account immediately.',
+        password_change: '🔐 Your password was changed. If this wasn\'t you, contact support immediately.',
+        suspicious_activity: '⚠️ Suspicious activity detected on your account. Please review your recent transactions.',
+      },
+      ar: {
+        login: '🔐 تم اكتشاف تسجيل دخول جديد. إذا لم يكن هذا أنت، قم بتأمين حسابك فوراً.',
+        password_change: '🔐 تم تغيير كلمة المرور. إذا لم يكن هذا أنت، تواصل مع الدعم فوراً.',
+        suspicious_activity: '⚠️ تم اكتشاف نشاط مشبوه. يرجى مراجعة معاملاتك الأخيرة.',
+      },
+    };
+
+    return this.sendSms(phone, templates[language][alertType] || templates.en[alertType]);
   }
 
   async sendSms(recipient: string, message: string) {

@@ -7,9 +7,10 @@ import { LoginDto, RefreshTokenDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { VerifyOtpDto, SendOtpDto, ResetPasswordDto } from './dto/otp.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
+import { ChangePasswordDto, VerifyOtpRequestDto, ResendOtpDto } from './dto/change-password.dto';
 
 interface AuthenticatedRequest extends Request {
-  user: { id: string; phone: string };
+  user: { id: string; sub: string; phone?: string };
 }
 
 @ApiTags('auth')
@@ -29,7 +30,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Verify OTP and get tokens' })
   @ApiResponse({ status: 200, description: 'OTP verified successfully' })
   @ApiResponse({ status: 400, description: 'Invalid OTP' })
-  async verifyOtp(@Body() body: { phone: string; otp: string; type: 'login' | 'register' }) {
+  async verifyOtp(@Body() body: VerifyOtpRequestDto) {
     if (body.type === 'register') {
       return this.authService.verifyRegistrationOtp(body.phone, body.otp);
     }
@@ -38,7 +39,7 @@ export class AuthController {
 
   @Post('resend-otp')
   @ApiOperation({ summary: 'Resend OTP code' })
-  async resendOtp(@Body() body: { phone: string; type: 'login' | 'register' }) {
+  async resendOtp(@Body() body: ResendOtpDto) {
     return this.authService.resendOtp(body.phone, body.type);
   }
 
@@ -98,7 +99,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Change password' })
   async changePassword(
     @Req() req: AuthenticatedRequest,
-    @Body() body: { currentPassword: string; newPassword: string },
+    @Body() body: ChangePasswordDto,
   ) {
     return this.authService.changePassword(req.user.id, body.currentPassword, body.newPassword);
   }

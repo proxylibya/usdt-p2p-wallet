@@ -4,10 +4,12 @@
 
 // Core API Client
 export { apiClient, TokenManager } from './apiClient';
+export { logger } from './loggerService';
 
 // Feature Services
 export { authService } from './authService';
 export { walletService } from './walletService';
+export { withdrawalService } from './withdrawalService';
 export { p2pService } from './p2pService';
 export { marketService } from './marketService';
 export { notificationService } from './notificationService';

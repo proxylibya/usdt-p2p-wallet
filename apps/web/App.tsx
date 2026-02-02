@@ -13,6 +13,7 @@ import { WalletProvider } from './context/WalletContext';
 import { P2PProvider } from './context/P2PContext';
 import { CallProvider } from './context/CallContext';
 import { Web3Provider } from './context/Web3Context';
+import { SiteConfigProvider } from './context/SiteConfigContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import { ThemeSafeList } from './components/ThemeSafeList';
 import { UserAppLayout } from './components/UserAppLayout';
@@ -40,6 +41,7 @@ const ComposeProviders: React.FC<{
 const App: React.FC = () => {
     // Order matters: Logic providers inside UI/State providers
     const providers = [
+        SiteConfigProvider, // Site configuration first
         ThemeProvider,
         LanguageProvider,
         AuthProvider,

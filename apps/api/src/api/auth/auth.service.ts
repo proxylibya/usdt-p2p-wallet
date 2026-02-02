@@ -11,6 +11,8 @@ import { normalizePhoneNumber } from '../../shared/utils/phone.util';
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
+  private readonly OTP_MAX_ATTEMPTS: number;
+  private readonly OTP_LOCKOUT_MINUTES: number;
 
   constructor(
     private prisma: PrismaService,
@@ -18,11 +20,18 @@ export class AuthService {
     private jwtService: JwtService,
     private configService: ConfigService,
     private smsService: SmsService,
-  ) {}
+  ) {
+    this.OTP_MAX_ATTEMPTS = this.configService.get('OTP_MAX_ATTEMPTS', 5);
+    this.OTP_LOCKOUT_MINUTES = this.configService.get('OTP_LOCKOUT_MINUTES', 30);
+  }
 
-  // 🎯 تطبيع رقم الهاتف - يقبل أي صيغة
+  // 🎯 تطبيع رقم الهاتف - يقبل أي صيغة من أي دولة
+  // 🌍 GLOBAL: Auto-detects country from dial code, defaults to GLOBAL if unknown
   private normalizePhone(phone: string): string {
-    const normalized = normalizePhoneNumber(phone, 'LY');
+    // Try to detect country from the phone number itself
+    // If phone starts with + or 00, it will auto-detect the country
+    // Otherwise, use GLOBAL as default (no country-specific normalization)
+    const normalized = normalizePhoneNumber(phone, 'GLOBAL');
     return normalized.full;
   }
 
@@ -324,28 +333,78 @@ export class AuthService {
     return this.sanitizeUser(user);
   }
 
-  // Update profile
-  async updateProfile(userId: string, data: any) {
+  // Update profile with field validation
+  async updateProfile(userId: string, data: {
+    name?: string;
+    email?: string;
+    avatarUrl?: string;
+    preferredCurrency?: string;
+    preferredLanguage?: string;
+  }) {
+    // Only allow specific fields to be updated
+    const allowedFields = ['name', 'email', 'avatarUrl', 'preferredCurrency', 'preferredLanguage'];
+    const sanitizedData: Record<string, any> = {};
+    
+    for (const field of allowedFields) {
+      if (data[field as keyof typeof data] !== undefined) {
+        sanitizedData[field] = data[field as keyof typeof data];
+      }
+    }
+    
+    // Validate email uniqueness if being changed
+    if (sanitizedData.email) {
+      const existingUser = await this.prisma.user.findFirst({
+        where: { email: sanitizedData.email, NOT: { id: userId } },
+      });
+      if (existingUser) {
+        throw new BadRequestException('Email already in use');
+      }
+    }
+    
     const user = await this.prisma.user.update({
       where: { id: userId },
-      data,
+      data: sanitizedData,
     });
     return this.sanitizeUser(user);
   }
 
-  // Resend OTP
+  // Resend OTP with rate limiting
   async resendOtp(phone: string, type: 'login' | 'register') {
     const normalizedPhone = this.normalizePhone(phone);
+    
+    // Check rate limit
+    const rateLimitKey = `otp:ratelimit:${normalizedPhone}`;
+    const attempts = await this.redis.get(rateLimitKey);
+    const attemptCount = attempts ? parseInt(attempts) : 0;
+    
+    if (attemptCount >= this.OTP_MAX_ATTEMPTS) {
+      const lockoutSeconds = this.OTP_LOCKOUT_MINUTES * 60;
+      throw new BadRequestException(
+        `Too many OTP requests. Please wait ${this.OTP_LOCKOUT_MINUTES} minutes before trying again.`
+      );
+    }
+    
+    // Increment rate limit counter
+    await this.redis.set(
+      rateLimitKey,
+      String(attemptCount + 1),
+      this.OTP_LOCKOUT_MINUTES * 60
+    );
+    
     const otp = this.generateOtp();
     const otpExpiration = this.configService.get('OTP_EXPIRATION_MINUTES', 5);
     
     await this.redis.set(
       `otp:${type}:${normalizedPhone}`,
-      JSON.stringify({ otp, phone: normalizedPhone }),
+      JSON.stringify({ otp, phone: normalizedPhone, attempts: 0 }),
       otpExpiration * 60
     );
 
-    await this.smsService.sendOtp(normalizedPhone, otp);
+    const sent = await this.smsService.sendOtp(normalizedPhone, otp);
+    if (!sent) {
+      this.logger.warn(`Failed to send OTP to ${normalizedPhone}`);
+    }
+    
     return { message: 'OTP sent successfully', expiresIn: otpExpiration * 60 };
   }
 

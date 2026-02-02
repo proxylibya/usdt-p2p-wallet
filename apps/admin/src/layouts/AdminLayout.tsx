@@ -26,6 +26,7 @@ import {
   ShieldCheck,
   Sliders,
   Key,
+  Palette,
 } from 'lucide-react';
 import { RealtimeIndicator, LiveNotificationCenter, LiveStatsBar } from '../components/RealtimeDashboard';
 
@@ -73,6 +74,7 @@ const navItems: NavItem[] = [
     ]
   },
   { label: 'System Logs', path: '/logs', icon: <ScrollText className="w-5 h-5" /> },
+  { label: 'Site Config', path: '/site-config', icon: <Palette className="w-5 h-5" /> },
   { label: 'Settings', path: '/settings', icon: <Settings className="w-5 h-5" /> },
 ];
 

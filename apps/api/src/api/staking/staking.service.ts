@@ -49,11 +49,18 @@ export class StakingService {
     if (!wallet) throw new BadRequestException(`Insufficient ${product.asset} balance`);
 
     return this.prisma.$transaction(async (tx) => {
-        // Deduct from Spot
-        await tx.wallet.update({
-            where: { id: wallet.id },
+        // Deduct from Spot with atomic balance check
+        const updateResult = await tx.wallet.updateMany({
+            where: { 
+              id: wallet.id,
+              balance: { gte: amount } // Atomic check to prevent race conditions
+            },
             data: { balance: { decrement: amount } }
         });
+        
+        if (updateResult.count === 0) {
+          throw new BadRequestException('Insufficient balance (concurrent modification detected)');
+        }
 
         // Calculate Dates
         const startDate = new Date();

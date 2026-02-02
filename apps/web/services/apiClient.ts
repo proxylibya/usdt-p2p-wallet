@@ -223,7 +223,10 @@ class ApiClient {
         success: true
       };
     } catch (error) {
-      // Silent fail when backend is unavailable - no console output
+      // Log network errors in development for debugging
+      if (import.meta.env.DEV) {
+        console.debug('[API] Request failed:', endpoint, error);
+      }
       return {
         data: null as T,
         success: false,
@@ -299,6 +302,9 @@ class ApiClient {
         message: data.message
       };
     } catch (error) {
+      if (import.meta.env.DEV) {
+        console.debug('[API] Upload failed:', endpoint, error);
+      }
       return {
         data: null as T,
         success: false,

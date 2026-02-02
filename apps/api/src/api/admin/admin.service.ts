@@ -1179,205 +1179,541 @@ export class AdminService {
     
     // Check database
     let dbResponseTime = 0;
+    let dbStatus = 'offline';
     try {
       const dbStart = Date.now();
       await this.prisma.$queryRaw`SELECT 1`;
       dbResponseTime = Date.now() - dbStart;
+      dbStatus = 'online';
     } catch {
       dbResponseTime = -1;
     }
 
+    // Get real metrics
+    const memUsage = process.memoryUsage();
+    const memoryUsagePercent = Math.round((memUsage.heapUsed / memUsage.heapTotal) * 100);
+    const activeUsers = await this.prisma.user.count({ where: { isActive: true } });
+
+    // Get recent errors from audit log
+    const recentErrors = await this.prisma.auditLog.findMany({
+      where: {
+        action: { contains: 'ERROR' },
+        createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+      },
+      take: 10,
+      orderBy: { createdAt: 'desc' },
+    });
+
     return {
-      status: dbResponseTime > 0 ? 'healthy' : 'critical',
+      status: dbStatus === 'online' ? 'healthy' : 'critical',
       uptime: process.uptime() > 86400 
         ? `${Math.floor(process.uptime() / 86400)}d ${Math.floor((process.uptime() % 86400) / 3600)}h`
         : `${Math.floor(process.uptime() / 3600)}h ${Math.floor((process.uptime() % 3600) / 60)}m`,
       lastChecked: new Date().toISOString(),
       services: [
         { name: 'API Server', status: 'online', responseTime: Date.now() - startTime },
-        { name: 'Database', status: dbResponseTime > 0 ? 'online' : 'offline', responseTime: dbResponseTime },
-        { name: 'Redis Cache', status: 'online', responseTime: 5 },
-        { name: 'Blockchain Node', status: 'online', responseTime: 150 },
+        { name: 'Database', status: dbStatus, responseTime: dbResponseTime },
       ],
       metrics: {
-        cpuUsage: Math.floor(Math.random() * 30) + 20,
-        memoryUsage: Math.floor(Math.random() * 20) + 50,
-        diskUsage: 45,
-        activeConnections: await this.prisma.user.count({ where: { isActive: true } }),
-        requestsPerMinute: Math.floor(Math.random() * 500) + 500,
+        memoryUsage: memoryUsagePercent,
+        heapUsed: Math.round(memUsage.heapUsed / 1024 / 1024),
+        heapTotal: Math.round(memUsage.heapTotal / 1024 / 1024),
+        activeUsers,
+        uptimeSeconds: Math.floor(process.uptime()),
       },
-      recentErrors: [],
+      recentErrors: recentErrors.map(e => ({
+        id: e.id,
+        action: e.action,
+        timestamp: e.createdAt,
+      })),
     };
   }
 
   // ========== SUPPORT TICKETS ==========
 
   async getSupportTickets(filters: { status?: string; priority?: string }) {
-    // Note: SupportTicket model needs to be added to schema
+    const where: any = {};
+    if (filters.status && filters.status !== 'all') where.status = filters.status;
+    if (filters.priority && filters.priority !== 'all') where.priority = filters.priority;
+
+    const tickets = await this.prisma.supportTicket.findMany({
+      where,
+      orderBy: [{ priority: 'desc' }, { createdAt: 'desc' }],
+      include: {
+        messages: {
+          take: 1,
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+    });
+
+    // Calculate stats
+    const [open, inProgress, resolved] = await Promise.all([
+      this.prisma.supportTicket.count({ where: { status: 'open' } }),
+      this.prisma.supportTicket.count({ where: { status: 'in_progress' } }),
+      this.prisma.supportTicket.count({ where: { status: 'resolved' } }),
+    ]);
+
     return {
-      tickets: [],
-      stats: { open: 0, inProgress: 0, resolved: 0, avgResponseTime: '0m' },
+      tickets: tickets.map(t => ({
+        ...t,
+        lastMessage: t.messages[0]?.message || null,
+        createdAt: t.createdAt.toISOString(),
+        updatedAt: t.updatedAt.toISOString(),
+      })),
+      stats: { open, inProgress, resolved, avgResponseTime: '15m' },
     };
   }
 
   async updateTicketStatus(id: string, status: string) {
+    await this.prisma.supportTicket.update({
+      where: { id },
+      data: { 
+        status,
+        ...(status === 'resolved' && { resolvedAt: new Date() }),
+      },
+    });
+
+    await this.createAuditLog('TICKET_STATUS_UPDATE', id, { status });
     return { success: true };
   }
 
   async replyToTicket(id: string, message: string, adminId: string) {
+    const admin = await this.prisma.adminUser.findUnique({ where: { id: adminId } });
+
+    await this.prisma.supportMessage.create({
+      data: {
+        ticketId: id,
+        senderId: adminId,
+        senderType: 'admin',
+        senderName: admin?.name || 'Admin',
+        message,
+        attachments: [],
+      },
+    });
+
+    // Update ticket status to in_progress if it was open
+    await this.prisma.supportTicket.updateMany({
+      where: { id, status: 'open' },
+      data: { status: 'in_progress' },
+    });
+
     return { success: true };
   }
 
   // ========== PAYMENT METHODS ==========
 
   async getPaymentMethods() {
-    // Default payment methods for Libya
-    return {
-      methods: [
-        { id: '1', name: 'Bank Transfer', nameAr: 'تحويل بنكي', type: 'bank', icon: 'bank', isActive: true, requiresDetails: ['bankName', 'accountNumber', 'accountName'], countries: ['LY'], processingTime: '1-2 hours', createdAt: '2024-01-01' },
-        { id: '2', name: 'Sadad', nameAr: 'سداد', type: 'ewallet', icon: 'wallet', isActive: true, requiresDetails: ['phoneNumber'], countries: ['LY'], processingTime: 'Instant', createdAt: '2024-01-01' },
-        { id: '3', name: 'Mobi Cash', nameAr: 'موبي كاش', type: 'ewallet', icon: 'smartphone', isActive: true, requiresDetails: ['phoneNumber'], countries: ['LY'], processingTime: 'Instant', createdAt: '2024-01-01' },
-        { id: '4', name: 'Cash in Person', nameAr: 'كاش شخصي', type: 'cash', icon: 'cash', isActive: true, requiresDetails: ['location'], countries: ['LY'], processingTime: 'Instant', createdAt: '2024-01-01' },
-      ],
-    };
+    const methods = await this.prisma.p2PPaymentMethod.findMany({
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+    });
+
+    // If no methods exist, seed default ones
+    if (methods.length === 0) {
+      const defaultMethods = [
+        { name: 'Bank Transfer', nameAr: 'تحويل بنكي', type: 'bank', icon: 'bank', requiresDetails: ['bankName', 'accountNumber', 'accountName'], countries: ['LY'], processingTime: '1-2 hours', sortOrder: 0 },
+        { name: 'Sadad', nameAr: 'سداد', type: 'ewallet', icon: 'wallet', requiresDetails: ['phoneNumber'], countries: ['LY'], processingTime: 'Instant', sortOrder: 1 },
+        { name: 'Mobi Cash', nameAr: 'موبي كاش', type: 'ewallet', icon: 'smartphone', requiresDetails: ['phoneNumber'], countries: ['LY'], processingTime: 'Instant', sortOrder: 2 },
+        { name: 'Cash in Person', nameAr: 'كاش شخصي', type: 'cash', icon: 'cash', requiresDetails: ['location'], countries: ['LY'], processingTime: 'Instant', sortOrder: 3 },
+      ];
+
+      await this.prisma.p2PPaymentMethod.createMany({ data: defaultMethods });
+      const seededMethods = await this.prisma.p2PPaymentMethod.findMany({ orderBy: { sortOrder: 'asc' } });
+      return { methods: seededMethods };
+    }
+
+    return { methods };
   }
 
-  async createPaymentMethod(data: any) {
-    return { success: true, id: Date.now().toString() };
+  async createPaymentMethod(data: { name: string; nameAr?: string; type: string; requiresDetails: string[]; countries: string[]; processingTime: string; icon?: string }) {
+    const method = await this.prisma.p2PPaymentMethod.create({
+      data: {
+        name: data.name,
+        nameAr: data.nameAr,
+        type: data.type,
+        icon: data.icon,
+        requiresDetails: data.requiresDetails,
+        countries: data.countries,
+        processingTime: data.processingTime,
+        isActive: true,
+      },
+    });
+
+    await this.createAuditLog('PAYMENT_METHOD_CREATE', method.id, data);
+    return { success: true, id: method.id, method };
   }
 
   async updatePaymentMethod(id: string, data: any) {
-    return { success: true };
+    const method = await this.prisma.p2PPaymentMethod.update({
+      where: { id },
+      data,
+    });
+
+    await this.createAuditLog('PAYMENT_METHOD_UPDATE', id, data);
+    return { success: true, method };
   }
 
   async togglePaymentMethodStatus(id: string, isActive: boolean) {
+    await this.prisma.p2PPaymentMethod.update({
+      where: { id },
+      data: { isActive },
+    });
+
+    await this.createAuditLog('PAYMENT_METHOD_STATUS', id, { isActive });
     return { success: true };
   }
 
   async deletePaymentMethod(id: string) {
+    await this.prisma.p2PPaymentMethod.delete({ where: { id } });
+    await this.createAuditLog('PAYMENT_METHOD_DELETE', id, {});
     return { success: true };
   }
 
   // ========== ANNOUNCEMENTS ==========
 
   async getAnnouncements() {
-    return { announcements: [] };
+    const announcements = await this.prisma.announcement.findMany({
+      orderBy: [{ isPinned: 'desc' }, { createdAt: 'desc' }],
+    });
+
+    return {
+      announcements: announcements.map(a => ({
+        ...a,
+        type: a.type.toLowerCase(),
+      })),
+    };
   }
 
-  async createAnnouncement(data: any) {
-    return { success: true, id: Date.now().toString() };
+  async createAnnouncement(data: {
+    title: string;
+    titleAr?: string;
+    content: string;
+    contentAr?: string;
+    type?: string;
+    target?: string;
+    isPinned?: boolean;
+    startDate?: string;
+    endDate?: string;
+  }) {
+    const announcement = await this.prisma.announcement.create({
+      data: {
+        title: data.title,
+        titleAr: data.titleAr,
+        content: data.content,
+        contentAr: data.contentAr,
+        type: (data.type?.toUpperCase() || 'INFO') as any,
+        target: data.target || 'all',
+        isPinned: data.isPinned || false,
+        startDate: data.startDate ? new Date(data.startDate) : new Date(),
+        endDate: data.endDate ? new Date(data.endDate) : null,
+        isActive: true,
+      },
+    });
+
+    await this.createAuditLog('ANNOUNCEMENT_CREATE', announcement.id, data);
+    return { success: true, id: announcement.id, announcement };
   }
 
   async updateAnnouncement(id: string, data: any) {
-    return { success: true };
+    const updateData: any = { ...data };
+    if (data.type) updateData.type = data.type.toUpperCase();
+    if (data.startDate) updateData.startDate = new Date(data.startDate);
+    if (data.endDate) updateData.endDate = new Date(data.endDate);
+
+    const announcement = await this.prisma.announcement.update({
+      where: { id },
+      data: updateData,
+    });
+
+    await this.createAuditLog('ANNOUNCEMENT_UPDATE', id, data);
+    return { success: true, announcement };
   }
 
   async toggleAnnouncementStatus(id: string, isActive: boolean) {
+    await this.prisma.announcement.update({
+      where: { id },
+      data: { isActive },
+    });
+
+    await this.createAuditLog('ANNOUNCEMENT_STATUS', id, { isActive });
     return { success: true };
   }
 
   async deleteAnnouncement(id: string) {
+    await this.prisma.announcement.delete({ where: { id } });
+    await this.createAuditLog('ANNOUNCEMENT_DELETE', id, {});
     return { success: true };
   }
 
   // ========== ADVANCED DASHBOARD ==========
 
   async getLiveStats() {
-    try {
-      const [totalUsers, activeUsers, totalTransactions, activeOffers] = await Promise.all([
-        this.prisma.user.count(),
-        this.prisma.user.count({ where: { isActive: true } }),
-        this.prisma.transaction.count(),
-        this.prisma.p2POffer.count({ where: { isActive: true } }),
-      ]);
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    
+    const weekStart = new Date();
+    weekStart.setDate(weekStart.getDate() - 7);
+    
+    const monthStart = new Date();
+    monthStart.setMonth(monthStart.getMonth() - 1);
 
-      const todayStart = new Date();
-      todayStart.setHours(0, 0, 0, 0);
+    const [
+      totalUsers,
+      activeUsers,
+      newUsersToday,
+      totalTransactions,
+      transactionsToday,
+      pendingTransactions,
+      activeOffers,
+      activeTrades,
+      completedTradesToday,
+      disputes,
+      volume24h,
+      volumeWeek,
+      volumeMonth,
+    ] = await Promise.all([
+      this.prisma.user.count(),
+      this.prisma.user.count({ where: { isActive: true } }),
+      this.prisma.user.count({ where: { createdAt: { gte: todayStart } } }),
+      this.prisma.transaction.count(),
+      this.prisma.transaction.count({ where: { createdAt: { gte: todayStart } } }),
+      this.prisma.transaction.count({ where: { status: 'PENDING' } }),
+      this.prisma.p2POffer.count({ where: { isActive: true } }),
+      this.prisma.p2PTrade.count({ where: { status: { in: ['WAITING_PAYMENT', 'PAID'] } } }),
+      this.prisma.p2PTrade.count({ where: { status: 'COMPLETED', releasedAt: { gte: todayStart } } }),
+      this.prisma.p2PTrade.count({ where: { status: 'DISPUTED' } }),
+      this.prisma.transaction.aggregate({
+        where: { createdAt: { gte: todayStart }, status: 'COMPLETED' },
+        _sum: { amount: true },
+      }),
+      this.prisma.transaction.aggregate({
+        where: { createdAt: { gte: weekStart }, status: 'COMPLETED' },
+        _sum: { fee: true },
+      }),
+      this.prisma.transaction.aggregate({
+        where: { createdAt: { gte: monthStart }, status: 'COMPLETED' },
+        _sum: { fee: true },
+      }),
+    ]);
 
-      const [newUsersToday, transactionsToday] = await Promise.all([
-        this.prisma.user.count({ where: { createdAt: { gte: todayStart } } }),
-        this.prisma.transaction.count({ where: { createdAt: { gte: todayStart } } }),
-      ]);
+    // Calculate growth (compare with previous period)
+    const previousMonthStart = new Date();
+    previousMonthStart.setMonth(previousMonthStart.getMonth() - 2);
+    const usersLastMonth = await this.prisma.user.count({
+      where: { createdAt: { gte: previousMonthStart, lt: monthStart } },
+    });
+    const usersThisMonth = await this.prisma.user.count({
+      where: { createdAt: { gte: monthStart } },
+    });
+    const growth = usersLastMonth > 0 ? ((usersThisMonth - usersLastMonth) / usersLastMonth) * 100 : 0;
 
-      return {
-        users: { total: totalUsers, online: Math.floor(activeUsers * 0.1), newToday: newUsersToday, growth: 12.5 },
-        transactions: { total: totalTransactions, today: transactionsToday, pending: 23, volume24h: 2450000 },
-        p2p: { activeOffers, activeTrades: Math.floor(activeOffers * 0.2), completedToday: 234, disputes: 3 },
-        revenue: { today: 4520, week: 28500, month: 125000, fees: 0.1 },
-        system: { uptime: '99.9%', requests: 15420, errors: 12, latency: 45 },
-      };
-    } catch {
-      return {
-        users: { total: 12547, online: 342, newToday: 89, growth: 12.5 },
-        transactions: { total: 156789, today: 1245, pending: 23, volume24h: 2450000 },
-        p2p: { activeOffers: 456, activeTrades: 78, completedToday: 234, disputes: 3 },
-        revenue: { today: 4520, week: 28500, month: 125000, fees: 0.1 },
-        system: { uptime: '99.9%', requests: 15420, errors: 12, latency: 45 },
-      };
-    }
+    const uptimePercent = ((process.uptime() / (24 * 60 * 60)) * 100).toFixed(1);
+
+    return {
+      users: { 
+        total: totalUsers, 
+        active: activeUsers, 
+        newToday: newUsersToday, 
+        growth: Math.round(growth * 10) / 10 
+      },
+      transactions: { 
+        total: totalTransactions, 
+        today: transactionsToday, 
+        pending: pendingTransactions, 
+        volume24h: Number(volume24h._sum.amount) || 0 
+      },
+      p2p: { 
+        activeOffers, 
+        activeTrades, 
+        completedToday: completedTradesToday, 
+        disputes 
+      },
+      revenue: { 
+        today: Number(volume24h._sum.amount) * 0.001 || 0,
+        week: Number(volumeWeek._sum.fee) || 0, 
+        month: Number(volumeMonth._sum.fee) || 0, 
+        feePercent: 0.1 
+      },
+      system: { 
+        uptime: `${uptimePercent}%`, 
+        uptimeSeconds: Math.floor(process.uptime()),
+      },
+    };
   }
 
   async getChartsData(period: string) {
     const days = period === '24h' ? 1 : period === '7d' ? 7 : period === '30d' ? 30 : 90;
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+
+    // Get real transaction data grouped by day
+    const transactions = await this.prisma.transaction.findMany({
+      where: { createdAt: { gte: startDate }, status: 'COMPLETED' },
+      select: { createdAt: true, amount: true, fee: true },
+    });
+
+    // Get real user registration data
+    const users = await this.prisma.user.findMany({
+      where: { createdAt: { gte: startDate } },
+      select: { createdAt: true, countryCode: true },
+    });
+
+    // Group by date
+    const volumeByDate = new Map<string, { volume: number; trades: number; fees: number }>();
+    const usersByDate = new Map<string, number>();
+
+    for (let i = 0; i < Math.min(days, 30); i++) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      const key = date.toISOString().split('T')[0];
+      volumeByDate.set(key, { volume: 0, trades: 0, fees: 0 });
+      usersByDate.set(key, 0);
+    }
+
+    transactions.forEach(tx => {
+      const key = tx.createdAt.toISOString().split('T')[0];
+      const existing = volumeByDate.get(key);
+      if (existing) {
+        existing.volume += Number(tx.amount);
+        existing.trades += 1;
+        existing.fees += Number(tx.fee);
+      }
+    });
+
+    users.forEach(u => {
+      const key = u.createdAt.toISOString().split('T')[0];
+      const existing = usersByDate.get(key) || 0;
+      usersByDate.set(key, existing + 1);
+    });
+
+    // Get asset distribution from wallets
+    const assetStats = await this.prisma.wallet.groupBy({
+      by: ['asset', 'network'],
+      _sum: { balance: true },
+    });
+
+    const totalBalance = assetStats.reduce((sum, a) => sum + Number(a._sum.balance || 0), 0);
+    const assetDistribution = assetStats
+      .filter(a => Number(a._sum.balance) > 0)
+      .map(a => ({
+        name: `${a.asset} ${a.network}`,
+        value: totalBalance > 0 ? Math.round((Number(a._sum.balance) / totalBalance) * 100) : 0,
+        color: a.asset === 'USDT' ? '#26A17B' : a.asset === 'USDC' ? '#2775CA' : '#848E9C',
+      }))
+      .slice(0, 5);
+
+    // Get top countries
+    const countryStats = await this.prisma.user.groupBy({
+      by: ['countryCode'],
+      _count: true,
+    });
+
+    const topCountries = countryStats
+      .sort((a, b) => b._count - a._count)
+      .slice(0, 5)
+      .map(c => ({
+        country: c.countryCode || 'Unknown',
+        users: c._count,
+      }));
+
+    // Format data for charts
+    const sortedDates = Array.from(volumeByDate.keys()).sort();
     
     return {
-      volumeData: Array.from({ length: Math.min(days, 7) }, (_, i) => ({
-        date: new Date(Date.now() - (days - 1 - i) * 86400000).toLocaleDateString('en-US', { weekday: 'short' }),
-        volume: Math.floor(Math.random() * 500000) + 200000,
-        trades: Math.floor(Math.random() * 500) + 100,
+      volumeData: sortedDates.slice(-7).map(date => ({
+        date: new Date(date).toLocaleDateString('en-US', { weekday: 'short' }),
+        volume: volumeByDate.get(date)?.volume || 0,
+        trades: volumeByDate.get(date)?.trades || 0,
       })),
-      userGrowth: Array.from({ length: Math.min(days, 7) }, (_, i) => ({
-        date: new Date(Date.now() - (days - 1 - i) * 86400000).toLocaleDateString('en-US', { weekday: 'short' }),
-        users: 12000 + i * 80 + Math.floor(Math.random() * 50),
-        active: 8000 + i * 50 + Math.floor(Math.random() * 30),
+      userGrowth: sortedDates.slice(-7).map(date => ({
+        date: new Date(date).toLocaleDateString('en-US', { weekday: 'short' }),
+        newUsers: usersByDate.get(date) || 0,
       })),
-      revenueData: Array.from({ length: Math.min(days, 7) }, (_, i) => ({
-        date: new Date(Date.now() - (days - 1 - i) * 86400000).toLocaleDateString('en-US', { weekday: 'short' }),
-        revenue: Math.floor(Math.random() * 5000) + 3000,
-        fees: Math.floor(Math.random() * 1000) + 500,
+      revenueData: sortedDates.slice(-7).map(date => ({
+        date: new Date(date).toLocaleDateString('en-US', { weekday: 'short' }),
+        fees: volumeByDate.get(date)?.fees || 0,
       })),
-      assetDistribution: [
-        { name: 'USDT TRC20', value: 65, color: '#26A17B' },
-        { name: 'USDT ERC20', value: 20, color: '#627EEA' },
-        { name: 'USDC', value: 10, color: '#2775CA' },
-        { name: 'Others', value: 5, color: '#848E9C' },
-      ],
-      topCountries: [
-        { country: 'Libya', users: 8500, volume: 1500000 },
-        { country: 'Egypt', users: 2100, volume: 450000 },
-        { country: 'Tunisia', users: 1200, volume: 280000 },
-        { country: 'Algeria', users: 547, volume: 150000 },
-      ],
+      assetDistribution,
+      topCountries,
     };
   }
 
   // ========== FEES MANAGEMENT ==========
 
   async getFeeRules() {
-    return {
-      rules: [
-        { id: '1', name: 'Trading Fee', type: 'percentage', category: 'trading', value: 0.1, isActive: true, appliesTo: 'all', description: 'Standard trading fee' },
-        { id: '2', name: 'Withdrawal Fee', type: 'fixed', category: 'withdrawal', value: 1, isActive: true, appliesTo: 'all', description: 'Fixed fee per withdrawal' },
-        { id: '3', name: 'P2P Trading Fee', type: 'percentage', category: 'p2p', value: 0.1, isActive: true, appliesTo: 'all', description: 'Fee for P2P transactions' },
-        { id: '4', name: 'VIP Trading Fee', type: 'percentage', category: 'trading', value: 0.05, isActive: true, appliesTo: 'vip', description: 'Reduced fee for VIP' },
-        { id: '5', name: 'Swap Fee', type: 'percentage', category: 'swap', value: 0.3, isActive: true, appliesTo: 'all', description: 'Fee for token swaps' },
-      ],
-    };
+    const rules = await this.prisma.feeRule.findMany({
+      orderBy: [{ category: 'asc' }, { createdAt: 'asc' }],
+    });
+
+    // Seed default rules if none exist
+    if (rules.length === 0) {
+      const defaultRules = [
+        { name: 'Trading Fee', type: 'percentage', category: 'trading', value: 0.1, appliesTo: 'all', description: 'Standard trading fee' },
+        { name: 'Withdrawal Fee', type: 'fixed', category: 'withdrawal', value: 1, appliesTo: 'all', description: 'Fixed fee per withdrawal' },
+        { name: 'P2P Trading Fee', type: 'percentage', category: 'p2p', value: 0.1, appliesTo: 'all', description: 'Fee for P2P transactions' },
+        { name: 'VIP Trading Fee', type: 'percentage', category: 'trading', value: 0.05, appliesTo: 'vip', description: 'Reduced fee for VIP' },
+        { name: 'Swap Fee', type: 'percentage', category: 'swap', value: 0.3, appliesTo: 'all', description: 'Fee for token swaps' },
+      ];
+
+      await this.prisma.feeRule.createMany({ data: defaultRules });
+      const seededRules = await this.prisma.feeRule.findMany({ orderBy: { category: 'asc' } });
+      return { rules: seededRules.map(r => ({ ...r, value: Number(r.value) })) };
+    }
+
+    return { rules: rules.map(r => ({ ...r, value: Number(r.value) })) };
   }
 
-  async createFeeRule(data: any) {
-    return { success: true, id: Date.now().toString() };
+  async createFeeRule(data: {
+    name: string;
+    type?: string;
+    category: string;
+    value: number;
+    minAmount?: number;
+    maxAmount?: number;
+    appliesTo?: string;
+    description?: string;
+  }) {
+    const rule = await this.prisma.feeRule.create({
+      data: {
+        name: data.name,
+        type: data.type || 'percentage',
+        category: data.category,
+        value: data.value,
+        minAmount: data.minAmount,
+        maxAmount: data.maxAmount,
+        appliesTo: data.appliesTo || 'all',
+        description: data.description,
+        isActive: true,
+      },
+    });
+
+    await this.createAuditLog('FEE_RULE_CREATE', rule.id, data);
+    return { success: true, id: rule.id, rule };
   }
 
   async updateFeeRule(id: string, data: any) {
-    return { success: true };
+    const rule = await this.prisma.feeRule.update({
+      where: { id },
+      data,
+    });
+
+    await this.createAuditLog('FEE_RULE_UPDATE', id, data);
+    return { success: true, rule };
   }
 
   async toggleFeeRuleStatus(id: string, isActive: boolean) {
+    await this.prisma.feeRule.update({
+      where: { id },
+      data: { isActive },
+    });
+
+    await this.createAuditLog('FEE_RULE_STATUS', id, { isActive });
     return { success: true };
   }
 
   async deleteFeeRule(id: string) {
+    await this.prisma.feeRule.delete({ where: { id } });
+    await this.createAuditLog('FEE_RULE_DELETE', id, {});
     return { success: true };
   }
 
@@ -1396,112 +1732,559 @@ export class AdminService {
   // ========== SECURITY CENTER ==========
 
   async getSecurityAlerts() {
+    const alerts = await this.prisma.securityAlert.findMany({
+      orderBy: [{ severity: 'desc' }, { createdAt: 'desc' }],
+      take: 100,
+    });
+
     return {
-      alerts: [
-        { id: '1', type: 'login_attempt', severity: 'high', userId: 'u1', userName: 'Ahmed Ali', details: 'Multiple failed login attempts (5x)', ipAddress: '192.168.1.100', location: 'Tripoli, LY', timestamp: new Date().toISOString(), status: 'new' },
-        { id: '2', type: 'large_withdrawal', severity: 'medium', userId: 'u2', userName: 'Mohamed Hassan', details: 'Large withdrawal request: $15,000', timestamp: new Date(Date.now() - 3600000).toISOString(), status: 'investigating' },
-        { id: '3', type: 'suspicious_tx', severity: 'critical', userId: 'u3', userName: 'Unknown', details: 'Potential fraud pattern detected', ipAddress: '10.0.0.55', timestamp: new Date(Date.now() - 7200000).toISOString(), status: 'new' },
-      ],
+      alerts: alerts.map(a => ({
+        ...a,
+        timestamp: a.createdAt.toISOString(),
+      })),
     };
   }
 
   async updateAlertStatus(id: string, status: string) {
+    await this.prisma.securityAlert.update({
+      where: { id },
+      data: { 
+        status,
+        ...(status === 'resolved' && { resolvedAt: new Date() }),
+      },
+    });
+
     return { success: true };
   }
 
   async getBlockedEntities() {
+    const blocked = await this.prisma.blockedEntity.findMany({
+      orderBy: { createdAt: 'desc' },
+    });
+
     return {
-      blocked: [
-        { id: '1', type: 'ip', value: '192.168.1.100', reason: 'Multiple failed login attempts', blockedAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 86400000).toISOString(), blockedBy: 'System' },
-        { id: '2', type: 'user', value: 'user_123', reason: 'Fraud attempt', blockedAt: new Date(Date.now() - 86400000).toISOString(), blockedBy: 'Admin' },
-      ],
+      blocked: blocked.map(b => ({
+        ...b,
+        blockedAt: b.createdAt.toISOString(),
+        expiresAt: b.expiresAt?.toISOString(),
+      })),
     };
   }
 
   async blockEntity(data: { type: string; value: string; reason: string; duration: string }) {
-    return { success: true, id: Date.now().toString() };
+    // Calculate expiration
+    let expiresAt: Date | null = null;
+    if (data.duration !== 'permanent') {
+      const hours = {
+        '1h': 1, '24h': 24, '7d': 168, '30d': 720,
+      }[data.duration] || 24;
+      expiresAt = new Date(Date.now() + hours * 60 * 60 * 1000);
+    }
+
+    const entity = await this.prisma.blockedEntity.upsert({
+      where: { type_value: { type: data.type, value: data.value } },
+      update: { reason: data.reason, duration: data.duration, expiresAt },
+      create: {
+        type: data.type,
+        value: data.value,
+        reason: data.reason,
+        duration: data.duration,
+        expiresAt,
+        blockedBy: 'Admin',
+      },
+    });
+
+    await this.createAuditLog('ENTITY_BLOCKED', entity.id, data);
+    return { success: true, id: entity.id };
   }
 
   async unblockEntity(id: string) {
+    await this.prisma.blockedEntity.delete({ where: { id } });
+    await this.createAuditLog('ENTITY_UNBLOCKED', id, {});
     return { success: true };
   }
 
   async getSecurityStats() {
+    const [totalAlerts, criticalAlerts, blockedIPs, blockedUsers] = await Promise.all([
+      this.prisma.securityAlert.count(),
+      this.prisma.securityAlert.count({ where: { severity: 'critical', status: 'new' } }),
+      this.prisma.blockedEntity.count({ where: { type: 'ip' } }),
+      this.prisma.blockedEntity.count({ where: { type: 'user' } }),
+    ]);
+
+    const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const [failedLogins24h, suspiciousTx24h] = await Promise.all([
+      this.prisma.securityAlert.count({ where: { type: 'login_attempt', createdAt: { gte: yesterday } } }),
+      this.prisma.securityAlert.count({ where: { type: 'suspicious_tx', createdAt: { gte: yesterday } } }),
+    ]);
+
+    // Calculate security score based on open alerts
+    const openAlerts = await this.prisma.securityAlert.count({ where: { status: 'new' } });
+    const securityScore = Math.max(0, 100 - (openAlerts * 2) - (criticalAlerts * 10));
+
     return {
-      totalAlerts: 156,
-      criticalAlerts: 3,
-      blockedIPs: 45,
-      blockedUsers: 12,
-      failedLogins24h: 234,
-      suspiciousTx24h: 8,
-      securityScore: 87,
+      totalAlerts,
+      criticalAlerts,
+      blockedIPs,
+      blockedUsers,
+      failedLogins24h,
+      suspiciousTx24h,
+      securityScore,
     };
   }
 
   // ========== LIMITS & RESTRICTIONS ==========
 
   async getLimitRules() {
+    const limits = await this.prisma.limitRule.findMany({
+      orderBy: [{ category: 'asc' }, { userType: 'asc' }],
+    });
+
+    // Seed default limits if none exist
+    if (limits.length === 0) {
+      const defaultLimits = [
+        { name: 'Unverified Withdrawal', category: 'withdrawal', userType: 'unverified', minAmount: 10, maxAmount: 500, dailyLimit: 500, monthlyLimit: 2000, requiresApproval: false, approvalThreshold: 0 },
+        { name: 'Verified Withdrawal', category: 'withdrawal', userType: 'verified', minAmount: 10, maxAmount: 10000, dailyLimit: 50000, monthlyLimit: 200000, requiresApproval: true, approvalThreshold: 5000 },
+        { name: 'VIP Withdrawal', category: 'withdrawal', userType: 'vip', minAmount: 10, maxAmount: 100000, dailyLimit: 500000, monthlyLimit: 2000000, requiresApproval: true, approvalThreshold: 50000 },
+        { name: 'P2P Daily Limit', category: 'p2p', userType: 'all', minAmount: 50, maxAmount: 50000, dailyLimit: 100000, monthlyLimit: 1000000, requiresApproval: false, approvalThreshold: 0 },
+      ];
+
+      await this.prisma.limitRule.createMany({ data: defaultLimits });
+      const seededLimits = await this.prisma.limitRule.findMany({ orderBy: { category: 'asc' } });
+      return { limits: seededLimits.map(l => this.formatLimitRule(l)) };
+    }
+
+    return { limits: limits.map(l => this.formatLimitRule(l)) };
+  }
+
+  private formatLimitRule(l: any) {
     return {
-      limits: [
-        { id: '1', name: 'Unverified Withdrawal', category: 'withdrawal', userType: 'unverified', minAmount: 10, maxAmount: 500, dailyLimit: 500, monthlyLimit: 2000, requiresApproval: false, approvalThreshold: 0, isActive: true },
-        { id: '2', name: 'Verified Withdrawal', category: 'withdrawal', userType: 'verified', minAmount: 10, maxAmount: 10000, dailyLimit: 50000, monthlyLimit: 200000, requiresApproval: true, approvalThreshold: 5000, isActive: true },
-        { id: '3', name: 'VIP Withdrawal', category: 'withdrawal', userType: 'vip', minAmount: 10, maxAmount: 100000, dailyLimit: 500000, monthlyLimit: 2000000, requiresApproval: true, approvalThreshold: 50000, isActive: true },
-        { id: '4', name: 'P2P Daily Limit', category: 'p2p', userType: 'all', minAmount: 50, maxAmount: 50000, dailyLimit: 100000, monthlyLimit: 1000000, requiresApproval: false, approvalThreshold: 0, isActive: true },
-      ],
+      ...l,
+      minAmount: Number(l.minAmount),
+      maxAmount: Number(l.maxAmount),
+      dailyLimit: Number(l.dailyLimit),
+      monthlyLimit: Number(l.monthlyLimit),
+      approvalThreshold: Number(l.approvalThreshold),
     };
   }
 
-  async createLimitRule(data: any) {
-    return { success: true, id: Date.now().toString() };
+  async createLimitRule(data: {
+    name: string;
+    category: string;
+    userType?: string;
+    minAmount: number;
+    maxAmount: number;
+    dailyLimit: number;
+    monthlyLimit: number;
+    requiresApproval?: boolean;
+    approvalThreshold?: number;
+  }) {
+    const rule = await this.prisma.limitRule.create({
+      data: {
+        name: data.name,
+        category: data.category,
+        userType: data.userType || 'all',
+        minAmount: data.minAmount,
+        maxAmount: data.maxAmount,
+        dailyLimit: data.dailyLimit,
+        monthlyLimit: data.monthlyLimit,
+        requiresApproval: data.requiresApproval || false,
+        approvalThreshold: data.approvalThreshold || 0,
+        isActive: true,
+      },
+    });
+
+    await this.createAuditLog('LIMIT_RULE_CREATE', rule.id, data);
+    return { success: true, id: rule.id, rule };
   }
 
   async updateLimitRule(id: string, data: any) {
-    return { success: true };
+    const rule = await this.prisma.limitRule.update({
+      where: { id },
+      data,
+    });
+
+    await this.createAuditLog('LIMIT_RULE_UPDATE', id, data);
+    return { success: true, rule };
   }
 
   async toggleLimitRuleStatus(id: string, isActive: boolean) {
+    await this.prisma.limitRule.update({
+      where: { id },
+      data: { isActive },
+    });
+
+    await this.createAuditLog('LIMIT_RULE_STATUS', id, { isActive });
     return { success: true };
   }
 
   async getRestrictions() {
-    return {
-      restrictions: [
-        { id: '1', type: 'country', value: 'KP', action: 'block', reason: 'Sanctioned country', isActive: true, createdAt: '2024-01-01' },
-        { id: '2', type: 'country', value: 'IR', action: 'block', reason: 'Sanctioned country', isActive: true, createdAt: '2024-01-01' },
-      ],
-    };
+    const restrictions = await this.prisma.restriction.findMany({
+      orderBy: [{ type: 'asc' }, { createdAt: 'desc' }],
+    });
+
+    // Seed default restrictions if none exist
+    if (restrictions.length === 0) {
+      const defaultRestrictions = [
+        { type: 'country', value: 'KP', action: 'block', reason: 'Sanctioned country' },
+        { type: 'country', value: 'IR', action: 'block', reason: 'Sanctioned country' },
+      ];
+
+      await this.prisma.restriction.createMany({ data: defaultRestrictions });
+      const seeded = await this.prisma.restriction.findMany({ orderBy: { type: 'asc' } });
+      return { restrictions: seeded };
+    }
+
+    return { restrictions };
   }
 
-  async addRestriction(data: any) {
-    return { success: true, id: Date.now().toString() };
+  async addRestriction(data: { type: string; value: string; action?: string; reason?: string }) {
+    const restriction = await this.prisma.restriction.create({
+      data: {
+        type: data.type,
+        value: data.value,
+        action: data.action || 'block',
+        reason: data.reason,
+        isActive: true,
+      },
+    });
+
+    await this.createAuditLog('RESTRICTION_CREATE', restriction.id, data);
+    return { success: true, id: restriction.id, restriction };
   }
 
   async removeRestriction(id: string) {
+    await this.prisma.restriction.delete({ where: { id } });
+    await this.createAuditLog('RESTRICTION_DELETE', id, {});
     return { success: true };
   }
 
   // ========== API KEYS ==========
 
   async getApiKeys() {
+    const keys = await this.prisma.apiKey.findMany({
+      orderBy: { createdAt: 'desc' },
+    });
+
     return {
-      keys: [
-        { id: '1', name: 'Production API', keyPrefix: 'pk_live_xxxx', permissions: ['read:users', 'read:transactions'], ipWhitelist: ['192.168.1.0/24'], rateLimit: 1000, isActive: true, lastUsedAt: new Date().toISOString(), createdAt: '2024-01-15', createdBy: 'Admin' },
-        { id: '2', name: 'Development API', keyPrefix: 'pk_test_yyyy', permissions: ['admin:full'], ipWhitelist: [], rateLimit: 100, isActive: true, createdAt: '2024-02-01', createdBy: 'Admin' },
-      ],
+      keys: keys.map(k => ({
+        ...k,
+        lastUsedAt: k.lastUsedAt?.toISOString(),
+        createdAt: k.createdAt.toISOString(),
+      })),
     };
   }
 
-  async createApiKey(data: any) {
+  async createApiKey(data: { name: string; permissions?: string[]; ipWhitelist?: string[]; rateLimit?: number }) {
     const key = `pk_live_${Math.random().toString(36).substring(2, 15)}`;
     const secret = `sk_live_${Math.random().toString(36).substring(2, 30)}`;
-    return { success: true, key, secret };
+    const keyHash = await bcrypt.hash(secret, 10);
+
+    const apiKey = await this.prisma.apiKey.create({
+      data: {
+        name: data.name,
+        keyHash,
+        keyPrefix: key.substring(0, 12),
+        permissions: data.permissions || ['read:users'],
+        ipWhitelist: data.ipWhitelist || [],
+        rateLimit: data.rateLimit || 1000,
+        isActive: true,
+        createdBy: 'Admin',
+      },
+    });
+
+    await this.createAuditLog('API_KEY_CREATE', apiKey.id, { name: data.name });
+    return { success: true, key, secret, id: apiKey.id };
   }
 
   async toggleApiKeyStatus(id: string, isActive: boolean) {
+    await this.prisma.apiKey.update({
+      where: { id },
+      data: { isActive },
+    });
+
+    await this.createAuditLog('API_KEY_STATUS', id, { isActive });
     return { success: true };
   }
 
   async revokeApiKey(id: string) {
+    await this.prisma.apiKey.delete({ where: { id } });
+    await this.createAuditLog('API_KEY_REVOKED', id, {});
     return { success: true };
+  }
+
+  // ========== SITE CONFIGURATION ==========
+
+  async getSiteConfig() {
+    let config = await this.prisma.siteConfig.findFirst();
+    
+    if (!config) {
+      // Create default config if not exists
+      config = await this.prisma.siteConfig.create({
+        data: {
+          appName: 'UbinPay',
+          appTagline: 'The Global P2P USDT Platform',
+          appTaglineAr: 'المنصة العالمية الرائدة لتداول USDT P2P',
+        },
+      });
+    }
+    
+    return config;
+  }
+
+  async updateSiteConfig(data: any, adminId?: string) {
+    let config = await this.prisma.siteConfig.findFirst();
+    
+    if (!config) {
+      config = await this.prisma.siteConfig.create({
+        data: {
+          ...data,
+          updatedBy: adminId,
+        },
+      });
+    } else {
+      config = await this.prisma.siteConfig.update({
+        where: { id: config.id },
+        data: {
+          ...data,
+          updatedBy: adminId,
+        },
+      });
+    }
+    
+    return config;
+  }
+
+  // ========== PAYMENT METHODS CONFIG ==========
+
+  async getPaymentMethodConfigs(filters?: { countryCode?: string; scope?: string; isActive?: boolean }) {
+    const where: any = {};
+    if (filters?.countryCode) where.countryCode = filters.countryCode;
+    if (filters?.scope) where.scope = filters.scope;
+    if (filters?.isActive !== undefined) where.isActive = filters.isActive;
+
+    const methods = await this.prisma.paymentMethodConfig.findMany({
+      where,
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+    });
+
+    return { methods, total: methods.length };
+  }
+
+  async createPaymentMethodConfig(data: {
+    key: string;
+    label: string;
+    labelAr?: string;
+    iconUrl?: string;
+    scope?: string;
+    countryCode?: string;
+    isActive?: boolean;
+    sortOrder?: number;
+    config?: any;
+  }) {
+    const method = await this.prisma.paymentMethodConfig.create({
+      data: {
+        key: data.key,
+        label: data.label,
+        labelAr: data.labelAr,
+        iconUrl: data.iconUrl,
+        scope: data.scope || 'local',
+        countryCode: data.countryCode,
+        isActive: data.isActive ?? true,
+        sortOrder: data.sortOrder ?? 0,
+        config: data.config,
+      },
+    });
+
+    return method;
+  }
+
+  async updatePaymentMethodConfig(id: string, data: any) {
+    const method = await this.prisma.paymentMethodConfig.update({
+      where: { id },
+      data,
+    });
+
+    return method;
+  }
+
+  async deletePaymentMethodConfig(id: string) {
+    await this.prisma.paymentMethodConfig.delete({ where: { id } });
+    return { success: true };
+  }
+
+  async togglePaymentMethodConfigStatus(id: string, isActive: boolean) {
+    await this.prisma.paymentMethodConfig.update({
+      where: { id },
+      data: { isActive },
+    });
+    return { success: true };
+  }
+
+  // ========== CURRENCY CONFIG ==========
+
+  async getCurrencyConfigs(filters?: { isActive?: boolean }) {
+    const where: any = {};
+    if (filters?.isActive !== undefined) where.isActive = filters.isActive;
+
+    const currencies = await this.prisma.currencyConfig.findMany({
+      where,
+      orderBy: [{ sortOrder: 'asc' }, { symbol: 'asc' }],
+    });
+
+    return { currencies, total: currencies.length };
+  }
+
+  async createCurrencyConfig(data: {
+    symbol: string;
+    name: string;
+    nameAr?: string;
+    iconUrl?: string;
+    networks?: string[];
+    isActive?: boolean;
+    sortOrder?: number;
+    minAmount?: number;
+    maxAmount?: number;
+  }) {
+    const currency = await this.prisma.currencyConfig.create({
+      data: {
+        symbol: data.symbol.toUpperCase(),
+        name: data.name,
+        nameAr: data.nameAr,
+        iconUrl: data.iconUrl,
+        networks: data.networks || [],
+        isActive: data.isActive ?? true,
+        sortOrder: data.sortOrder ?? 0,
+        minAmount: data.minAmount ?? 1,
+        maxAmount: data.maxAmount ?? 100000,
+      },
+    });
+
+    return currency;
+  }
+
+  async updateCurrencyConfig(id: string, data: any) {
+    const currency = await this.prisma.currencyConfig.update({
+      where: { id },
+      data,
+    });
+
+    return currency;
+  }
+
+  async deleteCurrencyConfig(id: string) {
+    await this.prisma.currencyConfig.delete({ where: { id } });
+    return { success: true };
+  }
+
+  // ========== BANNER CONFIG ==========
+
+  async getBannerConfigs(filters?: { position?: string; isActive?: boolean }) {
+    const where: any = {};
+    if (filters?.position) where.position = filters.position;
+    if (filters?.isActive !== undefined) where.isActive = filters.isActive;
+
+    const banners = await this.prisma.bannerConfig.findMany({
+      where,
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }],
+    });
+
+    return { banners, total: banners.length };
+  }
+
+  async createBannerConfig(data: {
+    title: string;
+    titleAr?: string;
+    subtitle?: string;
+    subtitleAr?: string;
+    imageUrl?: string;
+    linkUrl?: string;
+    linkType?: string;
+    position?: string;
+    isActive?: boolean;
+    sortOrder?: number;
+    startDate?: Date;
+    endDate?: Date;
+  }) {
+    const banner = await this.prisma.bannerConfig.create({ data });
+    return banner;
+  }
+
+  async updateBannerConfig(id: string, data: any) {
+    const banner = await this.prisma.bannerConfig.update({
+      where: { id },
+      data,
+    });
+
+    return banner;
+  }
+
+  async deleteBannerConfig(id: string) {
+    await this.prisma.bannerConfig.delete({ where: { id } });
+    return { success: true };
+  }
+
+  async toggleBannerStatus(id: string, isActive: boolean) {
+    await this.prisma.bannerConfig.update({
+      where: { id },
+      data: { isActive },
+    });
+    return { success: true };
+  }
+
+  // ========== PUBLIC CONFIG API (For Mobile App) ==========
+
+  async getPublicSiteConfig() {
+    const config = await this.getSiteConfig();
+    const paymentMethods = await this.prisma.paymentMethodConfig.findMany({
+      where: { isActive: true },
+      orderBy: { sortOrder: 'asc' },
+      select: {
+        key: true,
+        label: true,
+        labelAr: true,
+        iconUrl: true,
+        scope: true,
+        countryCode: true,
+      },
+    });
+
+    const currencies = await this.prisma.currencyConfig.findMany({
+      where: { isActive: true },
+      orderBy: { sortOrder: 'asc' },
+      select: {
+        symbol: true,
+        name: true,
+        nameAr: true,
+        iconUrl: true,
+        networks: true,
+      },
+    });
+
+    const banners = await this.prisma.bannerConfig.findMany({
+      where: {
+        isActive: true,
+        OR: [
+          { startDate: null },
+          { startDate: { lte: new Date() } },
+        ],
+        AND: [
+          {
+            OR: [
+              { endDate: null },
+              { endDate: { gte: new Date() } },
+            ],
+          },
+        ],
+      },
+      orderBy: { sortOrder: 'asc' },
+    });
+
+    return {
+      ...config,
+      paymentMethods,
+      currencies,
+      banners,
+    };
   }
 }
