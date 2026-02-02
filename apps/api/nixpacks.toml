@@ -1,14 +1,18 @@
 [phases.setup]
-nixPkgs = ["nodejs-18_x"]
+nixPkgs = ["nodejs_20"]
 
 [phases.install]
-cmds = ["npm install"]
+cmds = ["npm ci --include=dev || npm install"]
 
 [phases.build]
 cmds = [
-  "npm run build",
-  "npx prisma generate"
+  "npx prisma generate",
+  "npm run build"
 ]
 
 [start]
-cmd = "npm run start:prod"
+cmd = "node scripts/start-production.js"
+
+[variables]
+NODE_ENV = "production"
+NPM_CONFIG_PRODUCTION = "false"

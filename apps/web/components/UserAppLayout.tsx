@@ -9,7 +9,6 @@ import AIAssistantButton from './AIAssistantButton';
 import AIChatModal from './AIChatModal';
 import OfflineBanner from './OfflineBanner';
 import { InstallPrompt } from './InstallPrompt';
-import { NetworkBanner, NetworkWatermark } from './NetworkBanner';
 import { LockScreenOverlay } from './LockScreenOverlay';
 import { CallOverlay } from './CallOverlay';
 import { AppRoutes } from '../AppRoutes';
@@ -100,10 +99,8 @@ export const UserAppLayout: React.FC = () => {
         <div className="bg-background-primary text-text-primary h-[100dvh] w-full font-sans overflow-hidden flex flex-col">
             <div className="w-full h-full max-w-md mx-auto flex flex-col shadow-2xl overflow-hidden bg-background-primary relative">
                 
-                <NetworkBanner />
                 <OfflineBanner />
                 <InstallPrompt />
-                <NetworkWatermark />
                 
                 {/* Global Call Overlay - Persists across all pages */}
                 <CallOverlay />

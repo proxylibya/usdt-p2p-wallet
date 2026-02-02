@@ -26,19 +26,29 @@ async function bootstrap() {
     prefix: '/uploads/',
   });
 
-  app.getHttpAdapter()
-    .getInstance()
-    .get('/', (_req: any, res: any) => {
-      if (configService.get('NODE_ENV') !== 'production') {
-        return res.redirect('/docs');
-      }
-
-      return res.json({
-        status: 'ok',
-        version: '1.0.0',
-        docs: null,
-      });
+  const expressApp = app.getHttpAdapter().getInstance();
+  
+  // Root endpoint
+  expressApp.get('/', (_req: any, res: any) => {
+    if (configService.get('NODE_ENV') !== 'production') {
+      return res.redirect('/docs');
+    }
+    return res.json({
+      status: 'ok',
+      version: '1.0.0',
+      docs: null,
     });
+  });
+
+  // Railway healthcheck endpoint - responds on /api/v1 directly
+  expressApp.get('/api/v1', (_req: any, res: any) => {
+    return res.json({
+      status: 'ok',
+      service: 'usdt-p2p-api',
+      version: '1.0.0',
+      timestamp: new Date().toISOString(),
+    });
+  });
 
   // Security - Enhanced Helmet Configuration
   app.use(helmet({
