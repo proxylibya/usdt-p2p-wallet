@@ -1,0 +1,18 @@
+[phases.setup]
+nixPkgs = ["nodejs_20"]
+
+[phases.install]
+cmds = ["npm ci || npm install"]
+
+[phases.build]
+cmds = [
+  "npm run prisma:generate",
+  "npm run build:api"
+]
+
+[start]
+cmd = "npm run prisma:migrate:prod && node apps/api/dist/main.js"
+
+[variables]
+NODE_ENV = "production"
+NPM_CONFIG_PRODUCTION = "false"

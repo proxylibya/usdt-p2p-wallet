@@ -1,6 +1,9 @@
 {
   "name": "usdt-p2p-project",
   "private": true,
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "workspaces": [
     "apps/*"
   ],
