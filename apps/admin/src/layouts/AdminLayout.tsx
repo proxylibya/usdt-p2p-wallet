@@ -27,8 +27,10 @@ import {
   Sliders,
   Key,
   Palette,
+  Globe,
 } from 'lucide-react';
 import { RealtimeIndicator, LiveNotificationCenter, LiveStatsBar } from '../components/RealtimeDashboard';
+import { NetworkStatusBadge, NetworkBanner } from '../components/NetworkStatusBadge';
 
 interface NavItem {
   label: string;
@@ -62,6 +64,16 @@ const navItems: NavItem[] = [
   { label: 'Support Tickets', path: '/support', icon: <Headphones className="w-5 h-5" /> },
   { label: 'Announcements', path: '/announcements', icon: <Megaphone className="w-5 h-5" /> },
   { label: 'Security Center', path: '/security', icon: <ShieldCheck className="w-5 h-5" /> },
+  { 
+    label: '🌐 Network Mode', 
+    path: '/network', 
+    icon: <Globe className="w-5 h-5" />,
+    children: [
+      { label: 'Network Settings', path: '/network-config' },
+      { label: 'Blockchain Config', path: '/network-config?tab=blockchain' },
+      { label: 'Mode History', path: '/network-config?tab=history' },
+    ]
+  },
   { label: 'System Monitor', path: '/monitoring', icon: <Activity className="w-5 h-5" /> },
   { label: 'Reports', path: '/reports', icon: <BarChart3 className="w-5 h-5" /> },
   { 
@@ -212,6 +224,9 @@ const AdminLayout: React.FC = () => {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-h-screen">
+        {/* Network Banner */}
+        <NetworkBanner />
+        
         {/* Header */}
         <header className="h-16 bg-background-secondary border-b border-border-divider flex items-center justify-between px-6">
           <div className="flex items-center gap-4">
@@ -227,6 +242,7 @@ const AdminLayout: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-4">
+            <NetworkStatusBadge />
             <RealtimeIndicator />
             <LiveNotificationCenter />
           </div>

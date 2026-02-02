@@ -47,6 +47,7 @@ import SmsProvidersPage from './pages/sms/SmsProvidersPage';
 import SmsProviderFormPage from './pages/sms/SmsProviderFormPage';
 import SmsLogsPage from './pages/sms/SmsLogsPage';
 import SiteConfigPage from './pages/site-config/SiteConfigPage';
+import NetworkConfigPage from './pages/network/NetworkConfigPage';
 
 function App() {
   return (
@@ -133,6 +134,7 @@ function App() {
 
               <Route path="settings" element={<SettingsPage />} />
               <Route path="site-config" element={<SiteConfigPage />} />
+              <Route path="network-config" element={<NetworkConfigPage />} />
               <Route path="logs" element={<LogsPage />} />
             </Route>
             

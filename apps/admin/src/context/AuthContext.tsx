@@ -43,7 +43,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
-      const response = await apiClient.post<{ user: Admin; token: string }>('/admin/login', {
+      const response = await apiClient.post<{ token: string; user: Admin }>('/admin/login', {
         email,
         password,
       });
@@ -59,7 +59,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return true;
       }
       return false;
-    } catch {
+    } catch (error) {
+      console.error('Login error:', error);
       return false;
     }
   };

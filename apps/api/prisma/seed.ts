@@ -113,11 +113,63 @@ async function main() {
     }
   }
 
+  // =============================================
+  // 🌐 Create Network Configuration
+  // =============================================
+  const existingNetworkConfig = await prisma.networkConfig.findFirst({
+    where: { isActive: true }
+  });
+
+  if (!existingNetworkConfig) {
+    await prisma.networkConfig.create({
+      data: {
+        networkMode: 'TESTNET',
+        displayName: 'Testnet',
+        displayNameAr: 'شبكة الاختبار',
+        description: 'Test environment - No real funds',
+        descriptionAr: 'بيئة اختبار - لا أموال حقيقية',
+        primaryColor: '#F0B90B',
+        warningColor: '#F6465D',
+        badgeColor: '#FF6B35',
+        borderColor: '#FF6B35',
+        showGlobalBanner: true,
+        showWatermark: true,
+        requireConfirmation: true,
+        enableDeposits: true,
+        enableWithdrawals: true,
+        enableP2P: true,
+        enableSwap: true,
+        enableStaking: true,
+        maxTransactionAmount: 10000,
+        dailyLimit: 50000,
+        blockchainConfig: {
+          mainnet: {
+            bsc: { chainId: 56, name: 'BNB Smart Chain', rpcUrl: 'https://bsc-dataseed.binance.org/' },
+            tron: { chainId: 728126428, name: 'TRON Mainnet', rpcUrl: 'https://api.trongrid.io' },
+            ethereum: { chainId: 1, name: 'Ethereum Mainnet', rpcUrl: 'https://eth.llamarpc.com' },
+          },
+          testnet: {
+            bsc: { chainId: 97, name: 'BSC Testnet', rpcUrl: 'https://data-seed-prebsc-1-s1.binance.org:8545/' },
+            tron: { chainId: 2494104990, name: 'TRON Shasta Testnet', rpcUrl: 'https://api.shasta.trongrid.io' },
+            ethereum: { chainId: 11155111, name: 'Sepolia Testnet', rpcUrl: 'https://rpc.sepolia.org' },
+          },
+        },
+        isActive: true,
+      }
+    });
+    console.log('✅ Network Configuration created (TESTNET mode)');
+  } else {
+    console.log('✅ Network Configuration already exists');
+  }
+
   console.log('\n📋 Login Credentials:');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.log('🔐 Admin Dashboard (http://localhost:3001):');
   console.log(`   Email: ${adminEmail}`);
   console.log(`   Password: ${adminPassword}`);
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('\n🌐 Network Mode: TESTNET (default)');
+  console.log('   Switch to MAINNET from Admin Dashboard > Network Config');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 }
 
