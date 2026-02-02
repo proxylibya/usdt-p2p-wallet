@@ -575,7 +575,91 @@ model SystemSettings {
 }
 
 // ============================================
-// 🎨 SITE CONFIGURATION (UI Management)
+// � NETWORK CONFIGURATION
+// ============================================
+
+model NetworkConfig {
+  id String @id @default(uuid())
+
+  // Network Mode: mainnet or testnet
+  networkMode NetworkMode @default(TESTNET)
+
+  // Display Settings
+  displayName   String  @default("Testnet")
+  displayNameAr String  @default("شبكة الاختبار")
+  description   String?
+  descriptionAr String?
+
+  // Visual Indicators
+  primaryColor   String @default("#F0B90B") // Yellow for mainnet
+  warningColor   String @default("#F6465D") // Red for testnet warning
+  badgeColor     String @default("#FF6B35") // Badge background color
+  borderColor    String @default("#FF6B35") // Border accent color
+
+  // Alert Settings
+  showGlobalBanner    Boolean @default(true)  // Show warning banner in header
+  showWatermark       Boolean @default(true)  // Show watermark on screens
+  requireConfirmation Boolean @default(true)  // Require confirmation for mode switch
+
+  // Blockchain Networks Configuration (JSON)
+  // Contains chain IDs, RPC URLs, contract addresses per mode
+  blockchainConfig Json @default("{}")
+
+  // Feature Flags per Network Mode
+  enableDeposits    Boolean @default(true)
+  enableWithdrawals Boolean @default(true)
+  enableP2P         Boolean @default(true)
+  enableSwap        Boolean @default(true)
+  enableStaking     Boolean @default(true)
+
+  // Safety Settings
+  maxTransactionAmount Decimal @default(10000) @db.Decimal(20, 8)
+  dailyLimit           Decimal @default(50000) @db.Decimal(20, 8)
+
+  // Confirmation Requirements
+  confirmationCode     String? // Required code for switching to mainnet
+  lastModeChangeAt     DateTime?
+  lastModeChangeBy     String?
+  modeChangeReason     String?
+
+  // Status
+  isActive  Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // History of changes
+  changeHistory NetworkModeHistory[]
+
+  @@map("network_config")
+}
+
+model NetworkModeHistory {
+  id String @id @default(uuid())
+
+  networkConfigId String
+  networkConfig   NetworkConfig @relation(fields: [networkConfigId], references: [id], onDelete: Cascade)
+
+  previousMode NetworkMode
+  newMode      NetworkMode
+  changedBy    String // Admin ID
+  changedByName String?
+  reason       String?
+  ipAddress    String?
+
+  createdAt DateTime @default(now())
+
+  @@index([networkConfigId])
+  @@index([createdAt])
+  @@map("network_mode_history")
+}
+
+enum NetworkMode {
+  MAINNET
+  TESTNET
+}
+
+// ============================================
+// �🎨 SITE CONFIGURATION (UI Management)
 // ============================================
 
 model SiteConfig {
