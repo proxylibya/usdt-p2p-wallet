@@ -28,6 +28,7 @@ import { SwapModule } from './api/swap/swap.module';
 import { EidyaModule } from './api/eidya/eidya.module';
 import { StakingModule } from './api/staking/staking.module';
 import { UploadModule } from './api/upload/upload.module';
+import { NetworkModule } from './api/network/network.module';
 
 @Module({
   imports: [
@@ -70,6 +71,7 @@ import { UploadModule } from './api/upload/upload.module';
     EidyaModule,
     StakingModule,
     UploadModule,
+    NetworkModule,
   ],
   providers: [CleanupService],
 })
