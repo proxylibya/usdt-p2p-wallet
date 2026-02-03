@@ -1,9 +1,9 @@
-FROM node:20-alpine AS builder
+FROM node:20-slim AS builder
 
 WORKDIR /app
 
-# Install system dependencies needed for build (if any)
-RUN apk add --no-cache libc6-compat
+# Install system dependencies needed for Prisma
+RUN apt-get update && apt-get install -y openssl libssl-dev ca-certificates && rm -rf /var/lib/apt/lists/*
 
 # Copy package files
 COPY package*.json ./
@@ -24,9 +24,12 @@ WORKDIR /app
 RUN npm run build:api
 
 # --- Production Runner ---
-FROM node:20-alpine AS runner
+FROM node:20-slim AS runner
 
 WORKDIR /app
+
+# Install OpenSSL for Prisma runtime
+RUN apt-get update && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 
 ENV NODE_ENV=production
 
