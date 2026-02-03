@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y openssl libssl-dev ca-certificates && r
 COPY package*.json ./
 COPY apps/api/package*.json ./apps/api/
 
-# Install dependencies (use ci for reproducible builds)
+# Install ALL dependencies (need devDeps for build)
 RUN npm ci
 
 # Copy all files
@@ -23,6 +23,11 @@ RUN npx prisma generate
 WORKDIR /app
 RUN npm run build:api
 
+# Prune dev dependencies to reduce size
+RUN npm prune --production
+WORKDIR /app/apps/api
+RUN npm prune --production
+
 # --- Production Runner ---
 FROM node:20-slim AS runner
 
@@ -33,7 +38,7 @@ RUN apt-get update && apt-get install -y openssl ca-certificates && rm -rf /var/
 
 ENV NODE_ENV=production
 
-# Copy necessary files from builder
+# Copy only production files from builder
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/apps/api/package.json ./apps/api/
