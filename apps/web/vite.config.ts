@@ -8,7 +8,6 @@ export default defineConfig(({ mode }) => {
     
     return {
       define: {
-        'process.env': {},
         global: 'globalThis',
       },
       server: {
