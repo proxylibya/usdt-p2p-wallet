@@ -8,13 +8,10 @@ export default defineConfig(({ mode }) => {
     
     return {
       define: {
-        global: 'globalThis',
-        'process.env': JSON.stringify({
-          NODE_ENV: mode,
-        }),
-        'process.browser': true,
-        'process.version': JSON.stringify(''),
-        'process.platform': JSON.stringify('browser'),
+        global: 'window',
+        'process.env.NODE_ENV': JSON.stringify(mode),
+        'process': 'window.process',
+        'Buffer': 'window.Buffer',
       },
       server: {
         port: 3000,
