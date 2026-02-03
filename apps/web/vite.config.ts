@@ -7,6 +7,10 @@ export default defineConfig(({ mode }) => {
     const isProd = mode === 'production';
     
     return {
+      define: {
+        'process.env': {},
+        global: 'globalThis',
+      },
       server: {
         port: 3000,
         host: '0.0.0.0',
