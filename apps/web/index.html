@@ -20,16 +20,35 @@
     <title>USDT Wallet</title>
     
     <script>
-      // Global Polyfills for Node.js compatibility
-      window.global = window;
-      window.process = {
-        env: { NODE_ENV: 'production' },
-        version: '',
-        nextTick: function(fn) { setTimeout(fn, 0); },
-        browser: true,
-        platform: 'browser',
-        cwd: function() { return '/'; }
-      };
+      // Global Polyfills for Node.js compatibility - Robust Definition
+      (function() {
+        var global = typeof globalThis !== 'undefined' ? globalThis : window;
+        window.global = global;
+        
+        // Ensure process
+        if (typeof window.process === 'undefined') {
+          window.process = {
+            env: { NODE_ENV: 'production' },
+            version: '',
+            nextTick: function(fn) { setTimeout(fn, 0); },
+            browser: true,
+            platform: 'browser',
+            cwd: function() { return '/'; },
+            argv: [],
+            stdout: { write: function() {} },
+            stderr: { write: function() {} }
+          };
+        }
+        
+        // Ensure Buffer
+        if (typeof window.Buffer === 'undefined') {
+          window.Buffer = {
+            isBuffer: function() { return false; },
+            from: function(data) { return data; },
+            alloc: function() { return []; }
+          };
+        }
+      })();
     </script>
     
     <link rel="preconnect" href="https://fonts.googleapis.com">

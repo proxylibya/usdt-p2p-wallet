@@ -11,6 +11,10 @@ export default defineConfig(({ mode }) => {
       define: {
         // Keep this for efficient tree-shaking
         'process.env.NODE_ENV': JSON.stringify(mode),
+        // Safety fallbacks if polyfills miss something
+        global: 'window',
+        'process': 'window.process',
+        'Buffer': 'window.Buffer',
       },
       server: {
         port: 3000,
