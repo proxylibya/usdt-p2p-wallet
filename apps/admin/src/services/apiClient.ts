@@ -47,8 +47,7 @@ class ApiClient {
   private async request<T>(
     method: string,
     endpoint: string,
-    body?: unknown,
-    retries: number = 1
+    body?: unknown
   ): Promise<ApiResponse<T>> {
     // Check if token is expired before making request
     if (this.token && this.isTokenExpired(this.token)) {
