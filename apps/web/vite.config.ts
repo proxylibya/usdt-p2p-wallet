@@ -9,6 +9,7 @@ export default defineConfig(({ mode }) => {
     return {
       define: {
         global: 'globalThis',
+        'process.env.NODE_ENV': JSON.stringify(mode),
       },
       server: {
         port: 3000,
