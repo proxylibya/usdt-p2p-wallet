@@ -77,6 +77,55 @@ export class AdminService {
     return admin;
   }
 
+  async initialSetup(data: { email: string; password: string; name: string; setupKey?: string }) {
+    // Check if any admin exists
+    const adminCount = await this.prisma.adminUser.count();
+    
+    if (adminCount > 0) {
+      throw new BadRequestException('Setup already completed. Admin users exist.');
+    }
+
+    // Optional: Verify setup key from environment
+    const envSetupKey = process.env.ADMIN_SETUP_KEY;
+    if (envSetupKey && data.setupKey !== envSetupKey) {
+      throw new UnauthorizedException('Invalid setup key');
+    }
+
+    // Create the first admin
+    const passwordHash = await bcrypt.hash(data.password, 12);
+    const admin = await this.prisma.adminUser.create({
+      data: {
+        email: data.email,
+        passwordHash,
+        name: data.name,
+        role: 'superadmin',
+        isActive: true,
+      },
+    });
+
+    // Generate token for immediate login
+    const payload = {
+      sub: admin.id,
+      email: admin.email,
+      role: admin.role,
+      isAdmin: true,
+    };
+
+    const token = this.jwtService.sign(payload, { expiresIn: '24h' });
+
+    return {
+      success: true,
+      message: 'Admin account created successfully',
+      token,
+      user: {
+        id: admin.id,
+        email: admin.email,
+        name: admin.name,
+        role: admin.role,
+      },
+    };
+  }
+
   // ========== DASHBOARD ==========
 
   async getDashboardStats() {

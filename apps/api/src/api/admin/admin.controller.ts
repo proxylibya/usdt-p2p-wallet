@@ -24,6 +24,12 @@ export class AdminController {
     return this.adminService.adminLogin(body.email, body.password);
   }
 
+  @Post('setup')
+  @ApiOperation({ summary: 'Initial admin setup - works only once when no admins exist' })
+  initialSetup(@Body() body: { email: string; password: string; name: string; setupKey?: string }) {
+    return this.adminService.initialSetup(body);
+  }
+
   @Get('profile')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
