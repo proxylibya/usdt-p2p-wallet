@@ -24,7 +24,7 @@ interface AuthContextType {
   isBiometricEnabled: boolean;
   setupBiometrics: () => void;
   login: (phone: string, password: string) => Promise<'direct' | 'otp' | null>;
-  loginWithSocial: (provider: 'google' | 'apple') => Promise<boolean>;
+  loginWithSocial: (provider: 'google' | 'apple', token: string) => Promise<boolean>;
   requestRegistrationOtp: (name: string, email: string, phone: string, password: string) => Promise<boolean>;
   verifyLoginOtp: (otp: string) => Promise<boolean>;
   verifyRegistrationAndLogin: (otp: string) => Promise<boolean>;
@@ -178,8 +178,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, []);
 
   // SOCIAL LOGIN
-  const loginWithSocial = useCallback(async (): Promise<boolean> => {
+  const loginWithSocial = useCallback(async (provider: 'google' | 'apple', token: string): Promise<boolean> => {
+    try {
+      const response = await authService.socialLogin(provider, token);
+      if (response.success && response.data) {
+        setUser(buildUserFromApi(response.data.user));
+        return true;
+      }
       return false;
+    } catch {
+      return false;
+    }
   }, []);
 
   // REGISTRATION

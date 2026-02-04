@@ -8,6 +8,7 @@ import { RegisterDto } from './dto/register.dto';
 import { VerifyOtpDto, SendOtpDto, ResetPasswordDto } from './dto/otp.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { ChangePasswordDto, VerifyOtpRequestDto, ResendOtpDto } from './dto/change-password.dto';
+import { SocialLoginDto } from './dto/social-login.dto';
 
 interface AuthenticatedRequest extends Request {
   user: { id: string; sub: string; phone?: string };
@@ -41,6 +42,13 @@ export class AuthController {
   @ApiOperation({ summary: 'Resend OTP code' })
   async resendOtp(@Body() body: ResendOtpDto) {
     return this.authService.resendOtp(body.phone, body.type);
+  }
+
+  @Post('social')
+  @ApiOperation({ summary: 'Login with social provider' })
+  @ApiResponse({ status: 200, description: 'Login successful' })
+  async socialLogin(@Body() body: SocialLoginDto) {
+    return this.authService.socialLogin(body.provider, body.token);
   }
 
   @Post('register')

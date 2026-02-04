@@ -318,6 +318,101 @@ export class AuthService {
     return this.generateTokens(session.userId);
   }
 
+  // Social Login
+  async socialLogin(provider: string, token: string) {
+    // 1. Check if provider is enabled in AuthConfig
+    const config = await this.prisma.authConfig.findFirst({ where: { isActive: true } });
+    
+    if (config) {
+      if (provider === 'google' && !config.enableGoogleLogin) {
+        throw new BadRequestException('Google login is disabled');
+      }
+      if (provider === 'apple' && !config.enableAppleLogin) {
+        throw new BadRequestException('Apple login is disabled');
+      }
+      if (provider === 'facebook' && !config.enableFacebookLogin) {
+        throw new BadRequestException('Facebook login is disabled');
+      }
+    }
+
+    // 2. Verify Token (Mock implementation for now - normally you'd use Google/Apple libraries)
+    // In production, you would use google-auth-library or similar to verify the token
+    let email = '';
+    let name = '';
+    let externalId = '';
+
+    // MOCK VERIFICATION
+    if (provider === 'google') {
+        // Mock decoding
+        email = 'mock_google_user@example.com'; 
+        name = 'Mock Google User';
+        externalId = 'mock_google_id_123';
+        // TODO: Implement actual verification using config.googleClientId
+    } else if (provider === 'apple') {
+        email = 'mock_apple_user@example.com';
+        name = 'Mock Apple User';
+        externalId = 'mock_apple_id_123';
+        // TODO: Implement actual verification using config.appleClientId
+    } else {
+        throw new BadRequestException('Unsupported provider');
+    }
+
+    // 3. Find or Create User
+    // Note: In a real app, you might want to link social accounts to existing users by email
+    // or store social IDs in a separate table/column. 
+    // Here we will use email to match.
+    
+    let user = await this.prisma.user.findUnique({
+        where: { email },
+    });
+
+    if (!user) {
+        // Auto-register if not found
+        // Generate a random password for social users
+        const randomPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8);
+        const passwordHash = await this.hashPassword(randomPassword);
+        
+        // Generate a placeholder phone number if required by schema, or handle it properly
+        // For this schema, phone is unique and required. Social login users might not have phone.
+        // We'll generate a placeholder phone or ask user to provide it later.
+        // Using a social-specific prefix to avoid collision
+        const placeholderPhone = `+000${Date.now().toString().slice(-9)}`;
+
+        user = await this.prisma.user.create({
+            data: {
+                email,
+                name,
+                phone: placeholderPhone,
+                passwordHash,
+                isEmailVerified: true, // Social login implies verified email usually
+                wallets: {
+                    create: [
+                        { asset: 'USDT', network: 'TRC20', balance: 0, lockedBalance: 0, accountType: 'SPOT' },
+                        { asset: 'USDT', network: 'TRC20', balance: 0, lockedBalance: 0, accountType: 'FUNDING' },
+                        { asset: 'USDC', network: 'ERC20', balance: 0, lockedBalance: 0, accountType: 'SPOT' },
+                        { asset: 'USDC', network: 'ERC20', balance: 0, lockedBalance: 0, accountType: 'FUNDING' },
+                        { asset: 'BTC', network: 'Bitcoin', balance: 0, lockedBalance: 0, accountType: 'SPOT' },
+                        { asset: 'ETH', network: 'ERC20', balance: 0, lockedBalance: 0, accountType: 'SPOT' },
+                    ]
+                }
+            }
+        });
+    }
+
+    // 4. Login User
+    await this.prisma.user.update({
+        where: { id: user.id },
+        data: { lastLoginAt: new Date() },
+    });
+
+    const tokens = await this.generateTokens(user.id);
+
+    return {
+        user: this.sanitizeUser(user),
+        ...tokens,
+    };
+  }
+
   // Logout
   async logout(refreshToken: string) {
     await this.prisma.session.deleteMany({ where: { refreshToken } });
