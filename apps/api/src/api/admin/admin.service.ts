@@ -239,8 +239,37 @@ export class AdminService {
 
     if (!user) throw new NotFoundException('User not found');
 
+    // Calculate user stats
+    const [depositSum, withdrawalSum, totalP2PTrades, completedTrades, disputesCount] = await Promise.all([
+      this.prisma.transaction.aggregate({
+        where: { userId: id, type: 'DEPOSIT', status: 'COMPLETED' },
+        _sum: { amount: true },
+      }),
+      this.prisma.transaction.aggregate({
+        where: { userId: id, type: 'WITHDRAW', status: 'COMPLETED' },
+        _sum: { amount: true },
+      }),
+      this.prisma.p2PTrade.count({
+        where: { OR: [{ buyerId: id }, { sellerId: id }] },
+      }),
+      this.prisma.p2PTrade.count({
+        where: { OR: [{ buyerId: id }, { sellerId: id }], status: 'COMPLETED' },
+      }),
+      this.prisma.p2PTrade.count({
+        where: { OR: [{ buyerId: id }, { sellerId: id }], status: 'DISPUTED' },
+      }),
+    ]);
+
+    const stats = {
+      totalDeposits: Number(depositSum._sum.amount) || 0,
+      totalWithdrawals: Number(withdrawalSum._sum.amount) || 0,
+      totalP2PTrades,
+      completedTrades,
+      disputesCount,
+    };
+
     const { passwordHash, twoFactorSecret, biometricKey, ...safeUser } = user;
-    return safeUser;
+    return { ...safeUser, stats };
   }
 
   async updateUserProfile(id: string, data: { name?: string; email?: string; avatarUrl?: string; isActive?: boolean; isBanned?: boolean }) {
