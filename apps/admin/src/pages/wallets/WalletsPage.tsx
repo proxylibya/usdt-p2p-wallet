@@ -105,6 +105,8 @@ const WalletsPage: React.FC = () => {
           <div className="col-span-full flex justify-center py-8">
             <div className="animate-spin w-8 h-8 border-4 border-brand-yellow border-t-transparent rounded-full" />
           </div>
+        ) : filteredWallets.length === 0 ? (
+          <div className="col-span-full text-center py-8 text-text-secondary">No wallets found</div>
         ) : (
           filteredWallets.map((wallet) => (
             <div key={wallet.asset} className="bg-background-secondary p-6 rounded-xl border border-border-divider hover:border-brand-yellow/30 transition-all">

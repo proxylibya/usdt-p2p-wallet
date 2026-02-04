@@ -221,7 +221,9 @@ const SecurityCenterPage: React.FC = () => {
           </div>
 
           <div className="space-y-3">
-            {filteredAlerts.map((alert) => (
+            {filteredAlerts.length === 0 ? (
+              <div className="text-center py-8 text-text-secondary">No security alerts</div>
+            ) : filteredAlerts.map((alert) => (
               <div key={alert.id} className={`p-4 rounded-xl border ${alert.severity === 'critical' ? 'border-status-error bg-status-error/10' : 'border-border-divider bg-background-secondary'}`}>
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex items-start gap-3">
@@ -277,7 +279,9 @@ const SecurityCenterPage: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {blockedEntities.map((entity) => (
+              {blockedEntities.length === 0 ? (
+                <tr><td colSpan={7} className="text-center py-8 text-text-secondary">No blocked entities</td></tr>
+              ) : blockedEntities.map((entity) => (
                 <tr key={entity.id}>
                   <td><span className="badge badge-error capitalize">{entity.type}</span></td>
                   <td className="font-mono text-text-primary">{entity.value}</td>

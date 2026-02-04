@@ -4,7 +4,6 @@ import { Search, Filter, UserPlus, ChevronLeft, ChevronRight, Eye, Ban, CheckCir
 import { apiClient } from '../../services/apiClient';
 import { useToast } from '../../context/ToastContext';
 import { exportToCSV } from '../../utils/exportCSV';
-import { PhoneCell } from '../../components/PhoneDisplay';
 
 interface User {
   id: string;
@@ -137,7 +136,7 @@ const UsersPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Filters with animation */}
+      {/* Filters */}
       <div className="bg-background-secondary p-4 rounded-xl border border-border-divider flex flex-col sm:flex-row gap-4 animate-fade-in-up" style={{ animationDelay: '100ms' }}>
         <div className="flex-1 relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-secondary" />
@@ -214,7 +213,7 @@ const UsersPage: React.FC = () => {
                         </div>
                       </div>
                     </td>
-                    <td><PhoneCell phone={user.phone} /></td>
+                    <td className="text-text-primary">{user.phone}</td>
                     <td>{getStatusBadge(user)}</td>
                     <td>{getKycBadge(user.kycStatus)}</td>
                     <td>

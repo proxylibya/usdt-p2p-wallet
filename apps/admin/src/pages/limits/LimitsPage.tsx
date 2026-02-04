@@ -138,7 +138,9 @@ const LimitsPage: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {limits.map((limit) => (
+              {limits.length === 0 ? (
+                <tr><td colSpan={8} className="text-center py-8 text-text-secondary">No limit rules configured</td></tr>
+              ) : limits.map((limit) => (
                 <tr key={limit.id}>
                   <td className="font-medium text-text-primary">{limit.name}</td>
                   <td><span className="badge badge-info capitalize">{limit.category}</span></td>
@@ -189,13 +191,15 @@ const LimitsPage: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {restrictions.map((restriction) => (
+              {restrictions.length === 0 ? (
+                <tr><td colSpan={7} className="text-center py-8 text-text-secondary">No restrictions configured</td></tr>
+              ) : restrictions.map((restriction) => (
                 <tr key={restriction.id}>
                   <td><span className="badge badge-info capitalize">{restriction.type.replace('_', ' ')}</span></td>
                   <td className="font-mono text-text-primary">{restriction.value}</td>
                   <td><span className={`badge ${restriction.action === 'block' ? 'badge-error' : restriction.action === 'warn' ? 'badge-warning' : 'badge-info'}`}>{restriction.action}</span></td>
                   <td className="text-text-secondary">{restriction.reason}</td>
-                  <td className="text-text-secondary">{restriction.createdAt}</td>
+                  <td className="text-text-secondary">{new Date(restriction.createdAt).toLocaleDateString()}</td>
                   <td><span className={`badge ${restriction.isActive ? 'badge-success' : 'badge-error'}`}>{restriction.isActive ? 'Active' : 'Disabled'}</span></td>
                   <td>
                     <button onClick={() => handleDeleteRestriction(restriction.id)} className="p-2 hover:bg-background-tertiary rounded-lg">

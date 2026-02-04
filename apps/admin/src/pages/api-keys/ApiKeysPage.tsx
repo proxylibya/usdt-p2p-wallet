@@ -211,7 +211,9 @@ const ApiKeysPage: React.FC = () => {
             </tr>
           </thead>
           <tbody>
-            {apiKeys.map((key) => (
+            {apiKeys.length === 0 ? (
+              <tr><td colSpan={7} className="text-center py-8 text-text-secondary">No API keys created</td></tr>
+            ) : apiKeys.map((key) => (
               <tr key={key.id}>
                 <td>
                   <div>

@@ -384,7 +384,6 @@ export class AuthService {
                 name,
                 phone: placeholderPhone,
                 passwordHash,
-                isEmailVerified: true, // Social login implies verified email usually
                 wallets: {
                     create: [
                         { asset: 'USDT', network: 'TRC20', balance: 0, lockedBalance: 0, accountType: 'SPOT' },

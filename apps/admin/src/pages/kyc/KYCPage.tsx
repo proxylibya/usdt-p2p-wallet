@@ -122,6 +122,8 @@ const KYCPage: React.FC = () => {
           <div className="divide-y divide-border-divider max-h-[600px] overflow-y-auto">
             {isLoading ? (
               <div className="p-8 text-center"><div className="animate-spin w-6 h-6 border-2 border-brand-yellow border-t-transparent rounded-full mx-auto" /></div>
+            ) : requests.length === 0 ? (
+              <div className="p-8 text-center text-text-secondary">No KYC requests found</div>
             ) : requests.map((req) => (
               <div
                 key={req.id}
@@ -144,7 +146,7 @@ const KYCPage: React.FC = () => {
                 </div>
                 <div className="mt-2 flex items-center gap-4 text-sm text-text-secondary">
                   <span className="flex items-center gap-1"><FileText className="w-4 h-4" /> {req.documentType.replace('_', ' ')}</span>
-                  <span>{req.submittedAt}</span>
+                  <span>{new Date(req.submittedAt).toLocaleDateString()}</span>
                 </div>
               </div>
             ))}
@@ -185,7 +187,7 @@ const KYCPage: React.FC = () => {
                 </div>
                 <div className="flex justify-between p-3 bg-background-tertiary rounded-lg">
                   <span className="text-text-secondary">Submitted</span>
-                  <span className="text-text-primary">{selectedRequest.submittedAt}</span>
+                  <span className="text-text-primary">{new Date(selectedRequest.submittedAt).toLocaleDateString()}</span>
                 </div>
               </div>
 

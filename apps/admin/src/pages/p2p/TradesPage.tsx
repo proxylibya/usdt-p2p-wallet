@@ -129,6 +129,8 @@ const TradesPage: React.FC = () => {
             <tbody>
               {isLoading ? (
                 <tr><td colSpan={9} className="text-center py-8"><div className="animate-spin w-6 h-6 border-2 border-brand-yellow border-t-transparent rounded-full mx-auto" /></td></tr>
+              ) : trades.length === 0 ? (
+                <tr><td colSpan={9} className="text-center py-8 text-text-secondary">No trades found</td></tr>
               ) : trades.map((trade) => (
                 <tr key={trade.id}>
                   <td className="font-mono text-text-primary">{trade.id}</td>
@@ -143,7 +145,7 @@ const TradesPage: React.FC = () => {
                       {getStatusBadge(trade.status)}
                     </div>
                   </td>
-                  <td className="text-text-secondary">{trade.createdAt}</td>
+                  <td className="text-text-secondary">{new Date(trade.createdAt).toLocaleDateString()}</td>
                   <td>
                     <button 
                       onClick={() => navigate(`/p2p/trades/${trade.id}`)}

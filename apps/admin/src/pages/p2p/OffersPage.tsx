@@ -115,6 +115,8 @@ const OffersPage: React.FC = () => {
             <tbody>
               {isLoading ? (
                 <tr><td colSpan={11} className="text-center py-8"><div className="animate-spin w-6 h-6 border-2 border-brand-yellow border-t-transparent rounded-full mx-auto" /></td></tr>
+              ) : offers.length === 0 ? (
+                <tr><td colSpan={11} className="text-center py-8 text-text-secondary">No offers found</td></tr>
               ) : offers.map((offer) => (
                 <tr key={offer.id}>
                   <td className="font-mono text-text-primary">{offer.id}</td>

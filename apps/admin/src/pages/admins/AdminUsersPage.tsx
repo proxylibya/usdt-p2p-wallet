@@ -162,8 +162,8 @@ const AdminUsersPage: React.FC = () => {
                       {admin.isActive ? 'Active' : 'Disabled'}
                     </span>
                   </td>
-                  <td className="text-text-secondary">{admin.lastLoginAt || 'Never'}</td>
-                  <td className="text-text-secondary">{admin.createdAt}</td>
+                  <td className="text-text-secondary">{admin.lastLoginAt ? new Date(admin.lastLoginAt).toLocaleDateString() : 'Never'}</td>
+                  <td className="text-text-secondary">{new Date(admin.createdAt).toLocaleDateString()}</td>
                   <td>
                     <div className="relative">
                       <button onClick={() => setSelectedAdmin(selectedAdmin === admin.id ? null : admin.id)} className="p-2 hover:bg-background-tertiary rounded-lg">

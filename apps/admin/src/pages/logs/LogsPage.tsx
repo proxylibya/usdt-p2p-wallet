@@ -122,6 +122,8 @@ const LogsPage: React.FC = () => {
             <tbody>
               {isLoading ? (
                 <tr><td colSpan={6} className="text-center py-8"><div className="animate-spin w-6 h-6 border-2 border-brand-yellow border-t-transparent rounded-full mx-auto" /></td></tr>
+              ) : logs.length === 0 ? (
+                <tr><td colSpan={6} className="text-center py-8 text-text-secondary">No logs found</td></tr>
               ) : logs.map((log) => (
                 <tr key={log.id} className={log.level === 'error' ? 'bg-status-error/5' : log.level === 'warning' ? 'bg-status-warning/5' : ''}>
                   <td>
@@ -134,7 +136,7 @@ const LogsPage: React.FC = () => {
                   <td className="text-text-primary max-w-md truncate">{log.message}</td>
                   <td className="text-text-secondary">{log.userName || '-'}</td>
                   <td className="text-text-secondary font-mono text-sm">{log.ip || '-'}</td>
-                  <td className="text-text-secondary text-sm">{log.timestamp}</td>
+                  <td className="text-text-secondary text-sm">{new Date(log.timestamp).toLocaleString()}</td>
                 </tr>
               ))}
             </tbody>

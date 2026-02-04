@@ -147,6 +147,8 @@ const DisputesPage: React.FC = () => {
             <tbody>
               {isLoading ? (
                 <tr><td colSpan={10} className="text-center py-8"><div className="animate-spin w-6 h-6 border-2 border-brand-yellow border-t-transparent rounded-full mx-auto" /></td></tr>
+              ) : disputes.length === 0 ? (
+                <tr><td colSpan={10} className="text-center py-8 text-text-secondary">No disputes found</td></tr>
               ) : disputes.map((dispute) => (
                 <tr key={dispute.id} className={dispute.priority === 'critical' ? 'bg-status-error/5' : ''}>
                   <td className="font-mono text-text-primary">{dispute.id}</td>
@@ -157,7 +159,7 @@ const DisputesPage: React.FC = () => {
                   <td className="font-medium text-text-primary">{dispute.amount} {dispute.asset}</td>
                   <td>{getPriorityBadge(dispute.priority)}</td>
                   <td>{getStatusBadge(dispute.status)}</td>
-                  <td className="text-text-secondary">{dispute.createdAt}</td>
+                  <td className="text-text-secondary">{new Date(dispute.createdAt).toLocaleDateString()}</td>
                   <td>
                     <button onClick={() => navigate(`/disputes/${dispute.id}`)} className="btn-secondary text-sm flex items-center gap-1">
                       <Eye className="w-4 h-4" /> View

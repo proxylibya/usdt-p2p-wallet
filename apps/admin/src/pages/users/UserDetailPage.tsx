@@ -19,18 +19,35 @@ import {
 import { apiClient } from '../../services/apiClient';
 import { useToast } from '../../context/ToastContext';
 
+interface Wallet {
+  id: string;
+  type: string;
+  balance: number;
+  currency: string;
+}
+
+interface Transaction {
+  id: string;
+  type: string;
+  amount: number;
+  currency: string;
+  status: string;
+  createdAt: string;
+}
+
 interface UserDetail {
   id: string;
   name: string;
-  email: string;
+  email: string | null;
   phone: string;
-  avatarUrl?: string;
-  status: 'active' | 'suspended' | 'pending';
-  kycStatus: 'verified' | 'pending' | 'rejected' | 'none';
-  role: 'user' | 'merchant' | 'admin';
+  avatarUrl?: string | null;
+  isActive: boolean;
+  isBanned: boolean;
+  kycStatus: 'NOT_VERIFIED' | 'PENDING' | 'VERIFIED' | 'REJECTED';
   createdAt: string;
-  lastLogin: string;
-  wallets: { symbol: string; balance: number; network: string }[];
+  lastLoginAt: string | null;
+  wallets: Wallet[];
+  transactions: Transaction[];
   stats: {
     totalDeposits: number;
     totalWithdrawals: number;
@@ -38,14 +55,6 @@ interface UserDetail {
     completedTrades: number;
     disputesCount: number;
   };
-  recentTransactions: {
-    id: string;
-    type: string;
-    amount: number;
-    asset: string;
-    status: string;
-    date: string;
-  }[];
 }
 
 const UserDetailPage: React.FC = () => {
@@ -76,9 +85,13 @@ const UserDetailPage: React.FC = () => {
 
   const handleSuspend = async () => {
     try {
-      await apiClient.patch(`/admin/users/${id}/suspend`);
-      success('User Suspended', 'User has been suspended');
-      fetchUserDetail();
+      const response = await apiClient.put(`/admin/users/${id}`, { isActive: false });
+      if (response.success) {
+        success('User Suspended', 'User has been suspended');
+        fetchUserDetail();
+      } else {
+        error('Action Failed', response.error || 'Failed to suspend user');
+      }
     } catch {
       error('Action Failed', 'Failed to suspend user');
     }
@@ -86,11 +99,30 @@ const UserDetailPage: React.FC = () => {
 
   const handleActivate = async () => {
     try {
-      await apiClient.patch(`/admin/users/${id}/activate`);
-      success('User Activated', 'User has been activated');
-      fetchUserDetail();
+      const response = await apiClient.put(`/admin/users/${id}`, { isActive: true, isBanned: false });
+      if (response.success) {
+        success('User Activated', 'User has been activated');
+        fetchUserDetail();
+      } else {
+        error('Action Failed', response.error || 'Failed to activate user');
+      }
     } catch {
       error('Action Failed', 'Failed to activate user');
+    }
+  };
+
+  const getStatusText = () => {
+    if (user?.isBanned) return 'banned';
+    if (user?.isActive) return 'active';
+    return 'suspended';
+  };
+
+  const getKycStatusText = () => {
+    switch (user?.kycStatus) {
+      case 'VERIFIED': return 'verified';
+      case 'PENDING': return 'pending';
+      case 'REJECTED': return 'rejected';
+      default: return 'none';
     }
   };
 
@@ -120,7 +152,7 @@ const UserDetailPage: React.FC = () => {
           >
             <Edit className="w-4 h-4" /> Edit
           </button>
-          {user.status === 'active' ? (
+          {user.isActive && !user.isBanned ? (
             <button onClick={handleSuspend} className="btn-danger flex items-center gap-2">
               <Ban className="w-4 h-4" /> Suspend
             </button>
@@ -154,7 +186,7 @@ const UserDetailPage: React.FC = () => {
               <Mail className="w-5 h-5 text-text-secondary" />
               <div>
                 <p className="text-sm text-text-secondary">Email</p>
-                <p className="font-medium text-text-primary">{user.email}</p>
+                <p className="font-medium text-text-primary">{user.email || 'No email'}</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -168,30 +200,30 @@ const UserDetailPage: React.FC = () => {
               <Shield className="w-5 h-5 text-text-secondary" />
               <div>
                 <p className="text-sm text-text-secondary">Role</p>
-                <p className="font-medium text-text-primary capitalize">{user.role}</p>
+                <p className="font-medium text-text-primary capitalize">User</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
               <Calendar className="w-5 h-5 text-text-secondary" />
               <div>
                 <p className="text-sm text-text-secondary">Joined</p>
-                <p className="font-medium text-text-primary">{user.createdAt}</p>
+                <p className="font-medium text-text-primary">{new Date(user.createdAt).toLocaleDateString()}</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
               <Clock className="w-5 h-5 text-text-secondary" />
               <div>
                 <p className="text-sm text-text-secondary">Last Login</p>
-                <p className="font-medium text-text-primary">{user.lastLogin}</p>
+                <p className="font-medium text-text-primary">{user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleDateString() : 'Never'}</p>
               </div>
             </div>
           </div>
           <div className="flex flex-col gap-2">
-            <span className={`badge ${user.status === 'active' ? 'badge-success' : 'badge-error'}`}>
-              {user.status}
+            <span className={`badge ${user.isActive && !user.isBanned ? 'badge-success' : 'badge-error'}`}>
+              {getStatusText()}
             </span>
-            <span className={`badge ${user.kycStatus === 'verified' ? 'badge-success' : user.kycStatus === 'pending' ? 'badge-warning' : 'badge-error'}`}>
-              KYC: {user.kycStatus}
+            <span className={`badge ${user.kycStatus === 'VERIFIED' ? 'badge-success' : user.kycStatus === 'PENDING' ? 'badge-warning' : 'badge-info'}`}>
+              KYC: {getKycStatusText()}
             </span>
           </div>
         </div>
@@ -269,23 +301,29 @@ const UserDetailPage: React.FC = () => {
           <table className="data-table">
             <thead>
               <tr>
-                <th>Asset</th>
-                <th>Network</th>
+                <th>Type</th>
+                <th>Currency</th>
                 <th>Balance</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {user.wallets.map((wallet, idx) => (
-                <tr key={idx}>
-                  <td className="font-medium text-text-primary">{wallet.symbol}</td>
-                  <td className="text-text-secondary">{wallet.network}</td>
-                  <td className="font-medium text-text-primary">{wallet.balance.toLocaleString()}</td>
-                  <td>
-                    <button className="btn-secondary text-sm">View History</button>
-                  </td>
+              {user.wallets && user.wallets.length > 0 ? (
+                user.wallets.map((wallet) => (
+                  <tr key={wallet.id}>
+                    <td className="font-medium text-text-primary capitalize">{wallet.type}</td>
+                    <td className="text-text-secondary">{wallet.currency}</td>
+                    <td className="font-medium text-text-primary">{Number(wallet.balance).toLocaleString()}</td>
+                    <td>
+                      <button className="btn-secondary text-sm">View History</button>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={4} className="text-center py-4 text-text-secondary">No wallets found</td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>
@@ -297,26 +335,32 @@ const UserDetailPage: React.FC = () => {
             <thead>
               <tr>
                 <th>Type</th>
-                <th>Asset</th>
+                <th>Currency</th>
                 <th>Amount</th>
                 <th>Status</th>
                 <th>Date</th>
               </tr>
             </thead>
             <tbody>
-              {user.recentTransactions.map((tx) => (
-                <tr key={tx.id}>
-                  <td className="text-text-primary">{tx.type}</td>
-                  <td className="text-text-secondary">{tx.asset}</td>
-                  <td className="font-medium text-text-primary">{tx.amount.toLocaleString()}</td>
-                  <td>
-                    <span className={`badge ${tx.status === 'Completed' ? 'badge-success' : 'badge-warning'}`}>
-                      {tx.status}
-                    </span>
-                  </td>
-                  <td className="text-text-secondary">{tx.date}</td>
+              {user.transactions && user.transactions.length > 0 ? (
+                user.transactions.map((tx) => (
+                  <tr key={tx.id}>
+                    <td className="text-text-primary">{tx.type}</td>
+                    <td className="text-text-secondary">{tx.currency}</td>
+                    <td className="font-medium text-text-primary">{Number(tx.amount).toLocaleString()}</td>
+                    <td>
+                      <span className={`badge ${tx.status === 'COMPLETED' ? 'badge-success' : tx.status === 'PENDING' ? 'badge-warning' : 'badge-error'}`}>
+                        {tx.status}
+                      </span>
+                    </td>
+                    <td className="text-text-secondary">{new Date(tx.createdAt).toLocaleDateString()}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={5} className="text-center py-4 text-text-secondary">No transactions found</td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>

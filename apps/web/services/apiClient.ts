@@ -295,10 +295,19 @@ class ApiClient {
         }
       }
 
+      if (!response.ok) {
+        const errorData = await response.json();
+        return {
+          data: null as T,
+          success: false,
+          error: errorData.message || `Upload failed with status ${response.status}`
+        };
+      }
+
       const data = await response.json();
       return {
-        data: data.data || data, // Handle wrapped vs unwrapped data
-        success: response.ok,
+        data: data.data || data,
+        success: true,
         message: data.message
       };
     } catch (error) {

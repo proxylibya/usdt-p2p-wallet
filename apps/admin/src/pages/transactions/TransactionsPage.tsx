@@ -142,6 +142,8 @@ const TransactionsPage: React.FC = () => {
             <tbody>
               {isLoading ? (
                 <tr><td colSpan={9} className="text-center py-8"><div className="animate-spin w-6 h-6 border-2 border-brand-yellow border-t-transparent rounded-full mx-auto" /></td></tr>
+              ) : transactions.length === 0 ? (
+                <tr><td colSpan={9} className="text-center py-8 text-text-secondary">No transactions found</td></tr>
               ) : transactions.map((tx) => (
                 <tr key={tx.id}>
                   <td className="font-mono text-text-primary">{tx.id}</td>
@@ -156,7 +158,7 @@ const TransactionsPage: React.FC = () => {
                   <td className="font-medium text-text-primary">{tx.amount.toLocaleString()}</td>
                   <td className="text-text-secondary">{tx.fee}</td>
                   <td>{getStatusBadge(tx.status)}</td>
-                  <td className="text-text-secondary">{tx.createdAt}</td>
+                  <td className="text-text-secondary">{new Date(tx.createdAt).toLocaleDateString()}</td>
                   <td>
                     <button 
                       onClick={() => navigate(`/transactions/${tx.id}`)}

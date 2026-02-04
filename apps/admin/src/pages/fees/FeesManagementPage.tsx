@@ -171,7 +171,9 @@ const FeesManagementPage: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {feeRules.map((rule) => (
+              {feeRules.length === 0 ? (
+                <tr><td colSpan={7} className="text-center py-8 text-text-secondary">No fee rules configured</td></tr>
+              ) : feeRules.map((rule) => (
                 <tr key={rule.id}>
                   <td>
                     <div>

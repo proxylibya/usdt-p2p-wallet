@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, BadRequestException, UnauthorizedExcepti
 import { PrismaService } from '../../infrastructure/database/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import { normalizePhoneNumber } from '../../shared/utils/phone.util';
 
 @Injectable()
 export class AdminService {
@@ -300,8 +301,15 @@ export class AdminService {
   }
 
   async createUser(data: { name: string; phone: string; email?: string; password: string; role?: string }) {
-    // Check if phone already exists
-    const existingUser = await this.prisma.user.findUnique({ where: { phone: data.phone } });
+    // 🔄 Normalize phone number to prevent duplicates (092 vs 92)
+    const normalized = normalizePhoneNumber(data.phone, 'LY');
+    if (!normalized.isValid) {
+      throw new BadRequestException('Invalid phone number format');
+    }
+    const normalizedPhone = normalized.full;
+
+    // Check if phone already exists (using normalized number)
+    const existingUser = await this.prisma.user.findUnique({ where: { phone: normalizedPhone } });
     if (existingUser) {
       throw new BadRequestException('Phone number already registered');
     }
@@ -322,11 +330,12 @@ export class AdminService {
       const newUser = await tx.user.create({
         data: {
           name: data.name,
-          phone: data.phone,
+          phone: normalizedPhone, // Use normalized phone
           email: data.email,
           passwordHash,
           isActive: true,
           kycStatus: 'NOT_VERIFIED',
+          countryCode: normalized.countryCode, // Store country code
         },
       });
 

@@ -16,9 +16,15 @@ async function bootstrap() {
     logger: process.env.NODE_ENV === 'production' 
       ? ['error', 'warn', 'log']
       : ['error', 'warn', 'log', 'debug', 'verbose'],
+    bodyParser: true,
+    rawBody: true,
   });
 
   const configService = app.get(ConfigService);
+  
+  // Set body parser limits for file uploads
+  app.useBodyParser('json', { limit: '10mb' });
+  app.useBodyParser('urlencoded', { limit: '10mb', extended: true });
 
   // Serve uploaded files statically
   const uploadsPath = configService.get('LOCAL_STORAGE_PATH', './uploads');

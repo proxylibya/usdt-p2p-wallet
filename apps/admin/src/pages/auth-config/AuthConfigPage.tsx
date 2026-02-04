@@ -15,7 +15,7 @@ import {
   CheckCircle,
   AlertCircle
 } from 'lucide-react';
-import api from '../../services/api';
+import { apiClient as api } from '../../services/apiClient';
 
 interface AuthConfig {
   // Registration Methods
