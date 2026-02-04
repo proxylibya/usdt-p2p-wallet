@@ -1107,3 +1107,97 @@ model P2PPaymentMethod {
   @@index([isActive])
   @@map("p2p_payment_methods")
 }
+
+// ============================================
+// 🔐 AUTH CONFIGURATION (Registration & Login Settings)
+// ============================================
+
+model AuthConfig {
+  id String @id @default(uuid())
+
+  // ========== Registration Methods ==========
+  // Phone Registration
+  enablePhoneRegistration    Boolean @default(true)
+  phoneRequired              Boolean @default(true)
+  phoneVerificationRequired  Boolean @default(false) // Require OTP verification
+  
+  // Email Registration
+  enableEmailRegistration    Boolean @default(false)
+  emailRequired              Boolean @default(false)
+  emailVerificationRequired  Boolean @default(false)
+  
+  // ========== Social Login ==========
+  // Google
+  enableGoogleLogin          Boolean @default(false)
+  googleClientId             String?
+  googleClientSecret         String?
+  googleAndroidClientId      String?
+  googleIosClientId          String?
+  
+  // Apple
+  enableAppleLogin           Boolean @default(false)
+  appleClientId              String?
+  appleTeamId                String?
+  appleKeyId                 String?
+  applePrivateKey            String? // Store encrypted
+  
+  // Facebook (optional)
+  enableFacebookLogin        Boolean @default(false)
+  facebookAppId              String?
+  facebookAppSecret          String?
+
+  // ========== Login Settings ==========
+  enableDirectLogin          Boolean @default(true)  // Login with password only
+  enableOtpLogin             Boolean @default(false) // Login requires OTP
+  otpExpirationMinutes       Int     @default(5)
+  otpLength                  Int     @default(6)
+  maxOtpAttempts             Int     @default(5)
+  otpLockoutMinutes          Int     @default(30)
+
+  // ========== Password Policy ==========
+  minPasswordLength          Int     @default(8)
+  requireUppercase           Boolean @default(true)
+  requireLowercase           Boolean @default(true)
+  requireNumbers             Boolean @default(true)
+  requireSpecialChars        Boolean @default(false)
+
+  // ========== Session Settings ==========
+  accessTokenExpirationMins  Int     @default(15)
+  refreshTokenExpirationDays Int     @default(7)
+  maxActiveSessions          Int     @default(5)
+  
+  // ========== Security ==========
+  enableTwoFactor            Boolean @default(false)
+  enableBiometric            Boolean @default(true)
+  enableDeviceTracking       Boolean @default(true)
+  
+  // ========== Registration Fields ==========
+  requireName                Boolean @default(true)
+  requireAvatar              Boolean @default(false)
+  defaultCountryCode         String  @default("GLOBAL")
+  defaultCurrency            String  @default("USD")
+  defaultLanguage            String  @default("en")
+
+  // ========== Terms & Privacy ==========
+  termsUrl                   String?
+  termsUrlAr                 String?
+  privacyUrl                 String?
+  privacyUrlAr               String?
+  requireTermsAcceptance     Boolean @default(true)
+
+  // ========== UI Customization ==========
+  loginScreenTitle           String  @default("Welcome Back")
+  loginScreenTitleAr         String  @default("مرحباً بعودتك")
+  registerScreenTitle        String  @default("Create Account")
+  registerScreenTitleAr      String  @default("إنشاء حساب")
+  loginBackgroundUrl         String?
+  registerBackgroundUrl      String?
+
+  // ========== Metadata ==========
+  isActive    Boolean  @default(true)
+  updatedBy   String?
+  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now())
+
+  @@map("auth_config")
+}

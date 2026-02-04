@@ -900,11 +900,35 @@ export class AdminController {
     return this.adminService.toggleBannerStatus(id, body.isActive);
   }
 
+  // ========== AUTH CONFIG ==========
+
+  @Get('auth-config')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Get auth configuration (registration & login settings)' })
+  getAuthConfig() {
+    return this.adminService.getAuthConfig();
+  }
+
+  @Put('auth-config')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Update auth configuration' })
+  updateAuthConfig(@Body() body: any, @Request() req: any) {
+    return this.adminService.updateAuthConfig(body, req.user?.sub);
+  }
+
   // ========== PUBLIC CONFIG (No Auth Required) ==========
 
   @Get('public/config')
   @ApiOperation({ summary: 'Get public site configuration for mobile app' })
   getPublicSiteConfig() {
     return this.adminService.getPublicSiteConfig();
+  }
+
+  @Get('public/auth-config')
+  @ApiOperation({ summary: 'Get public auth configuration for mobile app (no secrets)' })
+  getPublicAuthConfig() {
+    return this.adminService.getPublicAuthConfig();
   }
 }

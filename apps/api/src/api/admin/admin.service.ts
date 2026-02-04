@@ -2336,4 +2336,109 @@ export class AdminService {
       banners,
     };
   }
+
+  // ========== AUTH CONFIG MANAGEMENT ==========
+
+  async getAuthConfig() {
+    let config = await this.prisma.authConfig.findFirst({
+      where: { isActive: true },
+    });
+
+    if (!config) {
+      // Create default config if not exists
+      config = await this.prisma.authConfig.create({
+        data: {
+          isActive: true,
+        },
+      });
+    }
+
+    return config;
+  }
+
+  async updateAuthConfig(data: any, adminId?: string) {
+    let config = await this.prisma.authConfig.findFirst({
+      where: { isActive: true },
+    });
+
+    if (!config) {
+      // Create with the provided data
+      config = await this.prisma.authConfig.create({
+        data: {
+          ...data,
+          isActive: true,
+          updatedBy: adminId,
+        },
+      });
+    } else {
+      // Update existing config
+      config = await this.prisma.authConfig.update({
+        where: { id: config.id },
+        data: {
+          ...data,
+          updatedBy: adminId,
+        },
+      });
+    }
+
+    return config;
+  }
+
+  // Public auth config (no secrets exposed)
+  async getPublicAuthConfig() {
+    const config = await this.getAuthConfig();
+    
+    // Return only public fields (no API keys/secrets)
+    return {
+      // Registration Methods
+      enablePhoneRegistration: config.enablePhoneRegistration,
+      phoneRequired: config.phoneRequired,
+      phoneVerificationRequired: config.phoneVerificationRequired,
+      enableEmailRegistration: config.enableEmailRegistration,
+      emailRequired: config.emailRequired,
+      emailVerificationRequired: config.emailVerificationRequired,
+      
+      // Social Login (only enabled flags, not keys)
+      enableGoogleLogin: config.enableGoogleLogin,
+      enableAppleLogin: config.enableAppleLogin,
+      enableFacebookLogin: config.enableFacebookLogin,
+      
+      // Login Settings
+      enableDirectLogin: config.enableDirectLogin,
+      enableOtpLogin: config.enableOtpLogin,
+      
+      // Password Policy
+      minPasswordLength: config.minPasswordLength,
+      requireUppercase: config.requireUppercase,
+      requireLowercase: config.requireLowercase,
+      requireNumbers: config.requireNumbers,
+      requireSpecialChars: config.requireSpecialChars,
+      
+      // Security
+      enableTwoFactor: config.enableTwoFactor,
+      enableBiometric: config.enableBiometric,
+      
+      // Registration Fields
+      requireName: config.requireName,
+      requireAvatar: config.requireAvatar,
+      defaultCountryCode: config.defaultCountryCode,
+      defaultCurrency: config.defaultCurrency,
+      defaultLanguage: config.defaultLanguage,
+      
+      // Terms & Privacy
+      termsUrl: config.termsUrl,
+      termsUrlAr: config.termsUrlAr,
+      privacyUrl: config.privacyUrl,
+      privacyUrlAr: config.privacyUrlAr,
+      requireTermsAcceptance: config.requireTermsAcceptance,
+      
+      // UI Customization
+      loginScreenTitle: config.loginScreenTitle,
+      loginScreenTitleAr: config.loginScreenTitleAr,
+      registerScreenTitle: config.registerScreenTitle,
+      registerScreenTitleAr: config.registerScreenTitleAr,
+      loginBackgroundUrl: config.loginBackgroundUrl,
+      registerBackgroundUrl: config.registerBackgroundUrl,
+    };
+  }
 }
