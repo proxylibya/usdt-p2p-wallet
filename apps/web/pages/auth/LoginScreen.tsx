@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useAuthConfig } from '../../context/AuthConfigContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { useNotifications } from '../../context/NotificationContext';
@@ -37,13 +38,21 @@ const LoginScreen: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const { login, verifyLoginOtp, isBiometricEnabled, loginWithBiometrics, loginWithSocial } = useAuth();
+    const { config, shouldShowGoogleLogin, shouldShowAppleLogin, shouldShowPhoneField, shouldShowEmailField } = useAuthConfig();
     const { primaryColor } = useTheme();
-    const { t, detectedCountry } = useLanguage();
+    const { t, detectedCountry, language } = useLanguage();
     const { sendPushNotification } = useNotifications();
 
     const [step, setStep] = useState<'credentials' | 'otp'>('credentials');
     const [method, setMethod] = useState<'phone' | 'email'>('phone');
     
+    // Initialize method based on config
+    useEffect(() => {
+        if (!shouldShowPhoneField() && shouldShowEmailField()) {
+            setMethod('email');
+        }
+    }, [shouldShowPhoneField, shouldShowEmailField]);
+
     // Initialize phone
     const [phone, setPhone] = useState(() => {
         if (detectedCountry) {
@@ -67,7 +76,7 @@ const LoginScreen: React.FC = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [isBioLoading, setIsBioLoading] = useState(false);
     const [error, setError] = useState('');
-    const [resendTimer, setResendTimer] = useState(30);
+    const [resendTimer, setResendTimer] = useState(config.otpExpirationMinutes * 60 || 300);
     
     const from = location.state?.from?.pathname || '/';
 
@@ -110,17 +119,22 @@ const LoginScreen: React.FC = () => {
             }
         }
 
-        const result = await login(identifier, password);
-        setIsLoading(false);
-        if (result === 'direct') {
-            navigate(from, { replace: true });
-            return;
-        }
+        try {
+            const result = await login(identifier, password);
+            setIsLoading(false);
+            if (result === 'direct') {
+                navigate(from, { replace: true });
+                return;
+            }
 
-        if (result === 'otp') {
-            setStep('otp');
-            setResendTimer(30);
-        } else {
+            if (result === 'otp') {
+                setStep('otp');
+                setResendTimer(config.otpExpirationMinutes * 60 || 300);
+            } else {
+                setError(t('incorrect_phone_or_password'));
+            }
+        } catch (err) {
+            setIsLoading(false);
             setError(t('incorrect_phone_or_password'));
         }
     };
@@ -164,23 +178,45 @@ const LoginScreen: React.FC = () => {
         e?.preventDefault();
         setIsLoading(true);
         setError('');
-        const success = await verifyLoginOtp(otp);
-        setIsLoading(false);
-        if (success) {
-            sendPushNotification(t('security_alert'), { body: t('new_device_login') });
-            navigate(from, { replace: true });
-        } else {
+        try {
+            const success = await verifyLoginOtp(otp);
+            setIsLoading(false);
+            if (success) {
+                sendPushNotification(t('security_alert'), { body: t('new_device_login') });
+                navigate(from, { replace: true });
+            } else {
+                setError(t('invalid_otp'));
+            }
+        } catch (err) {
+            setIsLoading(false);
             setError(t('invalid_otp'));
         }
     };
 
     const handleResendCode = () => {
-        setResendTimer(30);
+        setResendTimer(config.otpExpirationMinutes * 60 || 300);
         setOtp('');
     };
 
+    const formatTimer = (seconds: number) => {
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    };
+
+    const pageTitle = language === 'ar' ? (config.loginScreenTitleAr || t('login')) : (config.loginScreenTitle || t('login'));
+
     return (
-        <div className="h-[100dvh] bg-background-primary flex flex-col relative overflow-hidden">
+        <div className="h-[100dvh] bg-background-primary flex flex-col relative overflow-hidden" 
+             style={config.loginBackgroundUrl ? {
+                 backgroundImage: `url(${config.loginBackgroundUrl})`,
+                 backgroundSize: 'cover',
+                 backgroundPosition: 'center',
+             } : {}}>
+             
+             {/* Overlay for background image readability */}
+             {config.loginBackgroundUrl && <div className="absolute inset-0 bg-background-primary/90 backdrop-blur-sm z-0"></div>}
+
              {/* Back Button - Fixed at top */}
              <div className="absolute top-0 left-0 right-0 p-6 z-20 pointer-events-none">
                  <button onClick={() => navigate('/')} className="pointer-events-auto p-2 rounded-full bg-background-secondary hover:bg-background-tertiary transition-colors shadow-sm">
@@ -189,7 +225,7 @@ const LoginScreen: React.FC = () => {
              </div>
              
              {/* Main Scrollable Area */}
-             <div className="flex-grow overflow-y-auto no-scrollbar p-6 pt-[70px] pb-10">
+             <div className="flex-grow overflow-y-auto no-scrollbar p-6 pt-[70px] pb-10 z-10">
                  <div className="flex flex-col min-h-full max-w-md mx-auto">
                      
                      {/* Logo Area - REDUCED SIZE */}
@@ -215,17 +251,20 @@ const LoginScreen: React.FC = () => {
                         <>
                             {/* Header Text - REDUCED SIZE */}
                             <div className="text-center mb-5 flex-shrink-0">
-                                <h2 className="text-xl font-bold text-text-primary">{t('login')}</h2>
+                                <h2 className="text-xl font-bold text-text-primary">{pageTitle}</h2>
                                 <p className="text-text-secondary mt-1 text-sm">{t('login_subtitle')}</p>
                             </div>
 
-                            <AuthMethodTabs 
-                                activeMethod={method} 
-                                onChange={(m) => { setMethod(m); setError(''); }} 
-                            />
+                            {/* Auth Method Tabs - Only show if both are enabled */}
+                            {shouldShowPhoneField() && shouldShowEmailField() && (
+                                <AuthMethodTabs 
+                                    activeMethod={method} 
+                                    onChange={(m) => { setMethod(m); setError(''); }} 
+                                />
+                            )}
 
                             <form className="space-y-6 flex-shrink-0" onSubmit={handleLogin}>
-                                {method === 'phone' ? (
+                                {method === 'phone' && shouldShowPhoneField() && (
                                     <div className="animate-fadeIn">
                                         <label className="text-sm font-medium text-text-secondary ms-1" htmlFor="phone">{t('phone_number')}</label>
                                         <div className="mt-2">
@@ -238,7 +277,9 @@ const LoginScreen: React.FC = () => {
                                             />
                                         </div>
                                     </div>
-                                ) : (
+                                )}
+                                
+                                {method === 'email' && shouldShowEmailField() && (
                                     <div className="animate-fadeIn">
                                         <label className="text-sm font-medium text-text-secondary ms-1" htmlFor="email">{t('email_address')}</label>
                                         <div className="relative mt-2">
@@ -302,7 +343,7 @@ const LoginScreen: React.FC = () => {
                                         {isLoading ? '...' : t('login')}
                                     </button>
 
-                                    {isBiometricEnabled && (
+                                    {isBiometricEnabled && config.enableBiometric && (
                                         <button 
                                             type="button"
                                             onClick={handleBiometricLogin}
@@ -323,7 +364,7 @@ const LoginScreen: React.FC = () => {
                             </form>
                             
                             <div className="mt-6 flex-shrink-0">
-                                {/* Divider */}
+                                {/* Divider - Only if social login or register is available */}
                                 <div className="relative mb-6">
                                     <div className="absolute inset-0 flex items-center">
                                         <div className="w-full border-t border-border-divider"></div>
@@ -336,24 +377,30 @@ const LoginScreen: React.FC = () => {
                                 </div>
 
                                 {/* Social Login Buttons */}
-                                <div className="grid grid-cols-2 gap-3 mb-6">
-                                    <button 
-                                        type="button"
-                                        onClick={() => handleSocialLogin('google')}
-                                        className="flex items-center justify-center gap-2 p-3 rounded-xl bg-white text-black font-bold text-sm hover:bg-gray-100 transition-colors active:scale-95"
-                                    >
-                                        <GoogleIcon />
-                                        Google
-                                    </button>
-                                    <button 
-                                        type="button"
-                                        onClick={() => handleSocialLogin('apple')}
-                                        className="flex items-center justify-center gap-2 p-3 rounded-xl bg-black text-white border border-border-divider font-bold text-sm hover:bg-gray-900 transition-colors active:scale-95"
-                                    >
-                                        <AppleIcon />
-                                        Apple
-                                    </button>
-                                </div>
+                                {(shouldShowGoogleLogin() || shouldShowAppleLogin()) && (
+                                    <div className="grid grid-cols-2 gap-3 mb-6">
+                                        {shouldShowGoogleLogin() && (
+                                            <button 
+                                                type="button"
+                                                onClick={() => handleSocialLogin('google')}
+                                                className={`flex items-center justify-center gap-2 p-3 rounded-xl bg-white text-black font-bold text-sm hover:bg-gray-100 transition-colors active:scale-95 ${!shouldShowAppleLogin() ? 'col-span-2' : ''}`}
+                                            >
+                                                <GoogleIcon />
+                                                Google
+                                            </button>
+                                        )}
+                                        {shouldShowAppleLogin() && (
+                                            <button 
+                                                type="button"
+                                                onClick={() => handleSocialLogin('apple')}
+                                                className={`flex items-center justify-center gap-2 p-3 rounded-xl bg-black text-white border border-border-divider font-bold text-sm hover:bg-gray-900 transition-colors active:scale-95 ${!shouldShowGoogleLogin() ? 'col-span-2' : ''}`}
+                                            >
+                                                <AppleIcon />
+                                                Apple
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
 
                                 <button
                                     type="button"
@@ -392,13 +439,14 @@ const LoginScreen: React.FC = () => {
                                         onComplete={() => {
                                             // Optional: auto-submit when full
                                         }}
+                                        length={config.otpLength || 6}
                                     />
                                 </div>
 
                                 <div className="text-center">
                                     {resendTimer > 0 ? (
                                         <p className="text-sm text-text-secondary">
-                                            {t('resend_in')} <span className="font-mono font-bold text-text-primary">00:{resendTimer.toString().padStart(2, '0')}</span>
+                                            {t('resend_in')} <span className="font-mono font-bold text-text-primary">{formatTimer(resendTimer)}</span>
                                         </p>
                                     ) : (
                                         <div className="flex flex-col items-center gap-1">

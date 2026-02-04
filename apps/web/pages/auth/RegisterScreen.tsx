@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useAuthConfig } from '../../context/AuthConfigContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { AlertCircle, User, Lock, ShieldCheck, ChevronLeft, Mail, Eye, EyeOff, Check } from 'lucide-react';
@@ -36,12 +37,20 @@ const RegisterScreen: React.FC = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const { requestRegistrationOtp, verifyRegistrationAndLogin, loginWithSocial } = useAuth();
+    const { config, shouldShowGoogleLogin, shouldShowAppleLogin, shouldShowPhoneField, shouldShowEmailField, validatePassword, getPasswordRequirements } = useAuthConfig();
     const { primaryColor } = useTheme();
-    const { t } = useLanguage();
+    const { t, language } = useLanguage();
     
     const [step, setStep] = useState<'details' | 'otp'>('details');
     const [method, setMethod] = useState<'phone' | 'email'>('phone');
     
+    // Initialize method based on config
+    useEffect(() => {
+        if (!shouldShowPhoneField() && shouldShowEmailField()) {
+            setMethod('email');
+        }
+    }, [shouldShowPhoneField, shouldShowEmailField]);
+
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [phone, setPhone] = useState('+218');
@@ -56,7 +65,7 @@ const RegisterScreen: React.FC = () => {
     const [otp, setOtp] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
-    const [resendTimer, setResendTimer] = useState(30);
+    const [resendTimer, setResendTimer] = useState(config.otpExpirationMinutes * 60 || 300);
 
     const from = location.state?.from?.pathname || '/';
     
@@ -70,38 +79,22 @@ const RegisterScreen: React.FC = () => {
         return () => clearInterval(interval);
     }, [step, resendTimer]);
 
-    // Password Strength Calculation
-    const passwordStrength = useMemo(() => {
-        if (!password) return 0;
-        let score = 0;
-        if (password.length >= 8) score += 1;
-        if (/[A-Z]/.test(password)) score += 1;
-        if (/[0-9]/.test(password)) score += 1;
-        if (/[^A-Za-z0-9]/.test(password)) score += 1;
-        return score; // Max 4
-    }, [password]);
+    // Password Strength Calculation based on config requirements
+    const passwordValidation = useMemo(() => {
+        return validatePassword(password);
+    }, [password, validatePassword]);
 
-    const getStrengthColor = () => {
-        if (passwordStrength <= 1) return 'bg-error';
-        if (passwordStrength === 2) return 'bg-brand-yellow';
-        if (passwordStrength >= 3) return 'bg-success';
-        return 'bg-background-tertiary';
-    };
-
-    const getStrengthText = () => {
-        if (!password) return '';
-        if (passwordStrength <= 1) return t('status_weak');
-        if (passwordStrength === 2) return t('status_medium');
-        return t('status_strong');
-    };
+    const passwordRequirements = useMemo(() => {
+        return getPasswordRequirements();
+    }, [getPasswordRequirements]);
 
     const validateForm = () => {
-        if (!name.trim() || name.length < 3) {
+        if (config.requireName && (!name.trim() || name.length < 3)) {
             setError(t('full_name') + ' is required');
             return false;
         }
 
-        if (method === 'email') {
+        if (method === 'email' && shouldShowEmailField()) {
             const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
             if (!email.trim() || !emailRegex.test(email)) {
                 setError('Please enter a valid email address');
@@ -109,23 +102,24 @@ const RegisterScreen: React.FC = () => {
             }
         }
 
-        if (method === 'phone') {
+        if (method === 'phone' && shouldShowPhoneField()) {
             if (phone.length < 8) {
                 setError('Invalid phone number');
                 return false;
             }
         }
 
-        if (password.length < CONFIG.PASSWORD_MIN_LENGTH) {
-            setError(`Password must be at least ${CONFIG.PASSWORD_MIN_LENGTH} characters`);
+        if (!passwordValidation.valid) {
+            setError(passwordValidation.errors[0]);
             return false;
         }
+
         if (password !== confirmPassword) {
             setError(t('passwords_do_not_match'));
             return false;
         }
         
-        if (!agreeTerms) {
+        if (config.requireTermsAcceptance && !agreeTerms) {
             setError('You must agree to the Terms of Service');
             return false;
         }
@@ -148,7 +142,7 @@ const RegisterScreen: React.FC = () => {
         setIsLoading(false);
         if (success) {
             setStep('otp');
-            setResendTimer(30);
+            setResendTimer(config.otpExpirationMinutes * 60 || 300);
         } else {
             setError(t('failed_to_create_account'));
         }
@@ -173,7 +167,9 @@ const RegisterScreen: React.FC = () => {
     const handleVerifyOtp = async (e?: React.FormEvent) => {
         e?.preventDefault();
         
-        if (otp.length !== CONFIG.OTP_LENGTH) {
+        // Use config OTP length if available, otherwise default to constant
+        const requiredLength = config.otpLength || 6;
+        if (otp.length !== requiredLength) {
             setError(t('invalid_otp'));
             return;
         }
@@ -190,12 +186,29 @@ const RegisterScreen: React.FC = () => {
     };
 
     const handleResendCode = () => {
-        setResendTimer(30);
+        setResendTimer(config.otpExpirationMinutes * 60 || 300);
         setOtp('');
     };
 
+    const formatTimer = (seconds: number) => {
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    };
+
+    const pageTitle = language === 'ar' ? (config.registerScreenTitleAr || t('create_your_account')) : (config.registerScreenTitle || t('create_your_account'));
+
     return (
-        <div className="h-[100dvh] bg-background-primary flex flex-col relative overflow-hidden">
+        <div className="h-[100dvh] bg-background-primary flex flex-col relative overflow-hidden"
+             style={config.registerBackgroundUrl ? {
+                 backgroundImage: `url(${config.registerBackgroundUrl})`,
+                 backgroundSize: 'cover',
+                 backgroundPosition: 'center',
+             } : {}}>
+            
+            {/* Overlay for background image readability */}
+            {config.registerBackgroundUrl && <div className="absolute inset-0 bg-background-primary/90 backdrop-blur-sm z-0"></div>}
+
             {/* Back Button - Fixed at top, consistent with LoginScreen */}
             <div className="absolute top-0 left-0 right-0 p-6 z-20 pointer-events-none">
                 <button onClick={() => navigate('/')} className="pointer-events-auto p-2 rounded-full bg-background-secondary hover:bg-background-tertiary transition-colors shadow-sm">
@@ -204,7 +217,7 @@ const RegisterScreen: React.FC = () => {
             </div>
 
             {/* Main Scrollable Area */}
-            <div className="flex-grow overflow-y-auto no-scrollbar p-6 pt-[70px] pb-10">
+            <div className="flex-grow overflow-y-auto no-scrollbar p-6 pt-[70px] pb-10 z-10">
                 <div className="flex flex-col min-h-full max-w-md mx-auto">
                      
                      {/* Logo Area - REDUCED SIZE */}
@@ -230,28 +243,33 @@ const RegisterScreen: React.FC = () => {
                         <>
                             {/* Header - REDUCED SIZE */}
                             <div className="text-center mb-5 flex-shrink-0">
-                                <h2 className="text-xl font-bold text-text-primary">{t('create_your_account')}</h2>
+                                <h2 className="text-xl font-bold text-text-primary">{pageTitle}</h2>
                                 <p className="text-text-secondary mt-1 text-sm">{t('join_future_stablecoins')}</p>
                             </div>
 
-                            <AuthMethodTabs 
-                                activeMethod={method} 
-                                onChange={(m) => { setMethod(m); setError(''); }} 
-                            />
+                            {/* Auth Method Tabs - Only show if both are enabled */}
+                            {shouldShowPhoneField() && shouldShowEmailField() && (
+                                <AuthMethodTabs 
+                                    activeMethod={method} 
+                                    onChange={(m) => { setMethod(m); setError(''); }} 
+                                />
+                            )}
 
                             <form className="space-y-4 flex-shrink-0" onSubmit={handleRegister}>
-                                <div>
-                                    <label className="text-xs font-bold text-text-secondary ms-1 mb-1 block uppercase tracking-wide">{t('full_name')}</label>
-                                    <div className="relative">
-                                        <User className="absolute start-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-secondary" />
-                                        <input id="name" type="text" placeholder={t('full_name_placeholder')} value={name} onChange={e => { setName(e.target.value); setError(''); }}
-                                            className="w-full bg-background-secondary border border-border-divider rounded-xl p-3 ps-12 focus:ring-2 focus:ring-offset-2 focus:ring-offset-background-primary focus:outline-none transition-colors text-text-primary font-medium"
-                                            style={{'--tw-ring-color': `var(--tw-color-${primaryColor})`} as React.CSSProperties}
-                                        />
+                                {config.requireName && (
+                                    <div>
+                                        <label className="text-xs font-bold text-text-secondary ms-1 mb-1 block uppercase tracking-wide">{t('full_name')}</label>
+                                        <div className="relative">
+                                            <User className="absolute start-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-secondary" />
+                                            <input id="name" type="text" placeholder={t('full_name_placeholder')} value={name} onChange={e => { setName(e.target.value); setError(''); }}
+                                                className="w-full bg-background-secondary border border-border-divider rounded-xl p-3 ps-12 focus:ring-2 focus:ring-offset-2 focus:ring-offset-background-primary focus:outline-none transition-colors text-text-primary font-medium"
+                                                style={{'--tw-ring-color': `var(--tw-color-${primaryColor})`} as React.CSSProperties}
+                                            />
+                                        </div>
                                     </div>
-                                </div>
+                                )}
                                 
-                                {method === 'email' ? (
+                                {method === 'email' && shouldShowEmailField() && (
                                     <div className="animate-fadeIn">
                                         <label className="text-xs font-bold text-text-secondary ms-1 mb-1 block uppercase tracking-wide">{t('email_address')}</label>
                                         <div className="relative">
@@ -262,7 +280,9 @@ const RegisterScreen: React.FC = () => {
                                             />
                                         </div>
                                     </div>
-                                ) : (
+                                )} 
+                                
+                                {method === 'phone' && shouldShowPhoneField() && (
                                     <div className="animate-fadeIn">
                                         <label className="text-xs font-bold text-text-secondary ms-1 mb-1 block uppercase tracking-wide">{t('phone_number')}</label>
                                         <div className="mt-1">
@@ -292,15 +312,27 @@ const RegisterScreen: React.FC = () => {
                                             {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                         </button>
                                     </div>
-                                    {/* Password Strength Meter */}
+                                    {/* Password Requirements */}
                                     {password && (
-                                        <div className="flex items-center gap-2 mt-2 px-1 animate-fadeIn">
-                                            <div className="flex-1 h-1 bg-background-tertiary rounded-full overflow-hidden">
-                                                <div className={`h-full ${getStrengthColor()} transition-all duration-300`} style={{ width: `${(passwordStrength / 4) * 100}%` }}></div>
-                                            </div>
-                                            <span className={`text-[10px] font-bold uppercase ${passwordStrength <= 1 ? 'text-error' : passwordStrength === 2 ? 'text-brand-yellow' : 'text-success'}`}>
-                                                {getStrengthText()}
-                                            </span>
+                                        <div className="mt-2 px-1 animate-fadeIn">
+                                            <ul className="text-xs space-y-1">
+                                                {passwordRequirements.map((req, idx) => {
+                                                    // Simple check logic for display purposes - not perfect but good for visual feedback
+                                                    let met = false;
+                                                    if (req.includes('characters') && password.length >= config.minPasswordLength) met = true;
+                                                    else if (req.includes('uppercase') && /[A-Z]/.test(password)) met = true;
+                                                    else if (req.includes('lowercase') && /[a-z]/.test(password)) met = true;
+                                                    else if (req.includes('number') && /[0-9]/.test(password)) met = true;
+                                                    else if (req.includes('special') && /[^A-Za-z0-9]/.test(password)) met = true;
+                                                    
+                                                    return (
+                                                        <li key={idx} className={`flex items-center gap-1 ${met ? 'text-success' : 'text-text-secondary'}`}>
+                                                            {met ? <Check className="w-3 h-3" /> : <div className="w-3 h-3 rounded-full border border-current opacity-50" />}
+                                                            {req}
+                                                        </li>
+                                                    );
+                                                })}
+                                            </ul>
                                         </div>
                                     )}
                                 </div>
@@ -329,14 +361,16 @@ const RegisterScreen: React.FC = () => {
                                 </div>
 
                                 {/* Terms Checkbox */}
-                                <div className="flex items-start gap-3 py-2 px-1 cursor-pointer" onClick={() => setAgreeTerms(!agreeTerms)}>
-                                    <div className={`w-5 h-5 rounded border flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors ${agreeTerms ? `bg-${primaryColor} border-${primaryColor} text-background-primary` : 'border-text-secondary bg-background-tertiary'}`}>
-                                        {agreeTerms && <Check className="w-3.5 h-3.5" strokeWidth={3} />}
+                                {config.requireTermsAcceptance && (
+                                    <div className="flex items-start gap-3 py-2 px-1 cursor-pointer" onClick={() => setAgreeTerms(!agreeTerms)}>
+                                        <div className={`w-5 h-5 rounded border flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors ${agreeTerms ? `bg-${primaryColor} border-${primaryColor} text-background-primary` : 'border-text-secondary bg-background-tertiary'}`}>
+                                            {agreeTerms && <Check className="w-3.5 h-3.5" strokeWidth={3} />}
+                                        </div>
+                                        <p className="text-xs text-text-secondary leading-snug">
+                                            I agree to the <span className={`text-${primaryColor} font-bold hover:underline`}>Terms of Service</span> and <span className={`text-${primaryColor} font-bold hover:underline`}>Privacy Policy</span>.
+                                        </p>
                                     </div>
-                                    <p className="text-xs text-text-secondary leading-snug">
-                                        I agree to the <span className={`text-${primaryColor} font-bold hover:underline`}>Terms of Service</span> and <span className={`text-${primaryColor} font-bold hover:underline`}>Privacy Policy</span>.
-                                    </p>
-                                </div>
+                                )}
 
                                 {error && (
                                     <div className="flex items-center justify-center gap-2 text-error text-sm bg-error/10 p-3 rounded-lg animate-fadeIn">
@@ -351,37 +385,45 @@ const RegisterScreen: React.FC = () => {
                             </form>
                             
                             <div className="mt-6 flex-shrink-0">
-                                {/* Divider */}
-                                <div className="relative mb-6">
-                                    <div className="absolute inset-0 flex items-center">
-                                        <div className="w-full border-t border-border-divider"></div>
-                                    </div>
-                                    <div className="relative flex justify-center text-sm">
-                                        <span className="px-2 bg-background-primary text-text-secondary">
-                                            {t('or')}
-                                        </span>
-                                    </div>
-                                </div>
+                                {/* Divider - Only if social login is available */}
+                                {(shouldShowGoogleLogin() || shouldShowAppleLogin()) && (
+                                    <>
+                                        <div className="relative mb-6">
+                                            <div className="absolute inset-0 flex items-center">
+                                                <div className="w-full border-t border-border-divider"></div>
+                                            </div>
+                                            <div className="relative flex justify-center text-sm">
+                                                <span className="px-2 bg-background-primary text-text-secondary">
+                                                    {t('or')}
+                                                </span>
+                                            </div>
+                                        </div>
 
-                                {/* Social Login Buttons */}
-                                <div className="grid grid-cols-2 gap-3 mb-6">
-                                    <button 
-                                        type="button"
-                                        onClick={() => handleSocialLogin('google')}
-                                        className="flex items-center justify-center gap-2 p-3 rounded-xl bg-white text-black font-bold text-sm hover:bg-gray-100 transition-colors active:scale-95"
-                                    >
-                                        <GoogleIcon />
-                                        Google
-                                    </button>
-                                    <button 
-                                        type="button"
-                                        onClick={() => handleSocialLogin('apple')}
-                                        className="flex items-center justify-center gap-2 p-3 rounded-xl bg-black text-white border border-border-divider font-bold text-sm hover:bg-gray-900 transition-colors active:scale-95"
-                                    >
-                                        <AppleIcon />
-                                        Apple
-                                    </button>
-                                </div>
+                                        {/* Social Login Buttons */}
+                                        <div className="grid grid-cols-2 gap-3 mb-6">
+                                            {shouldShowGoogleLogin() && (
+                                                <button 
+                                                    type="button"
+                                                    onClick={() => handleSocialLogin('google')}
+                                                    className={`flex items-center justify-center gap-2 p-3 rounded-xl bg-white text-black font-bold text-sm hover:bg-gray-100 transition-colors active:scale-95 ${!shouldShowAppleLogin() ? 'col-span-2' : ''}`}
+                                                >
+                                                    <GoogleIcon />
+                                                    Google
+                                                </button>
+                                            )}
+                                            {shouldShowAppleLogin() && (
+                                                <button 
+                                                    type="button"
+                                                    onClick={() => handleSocialLogin('apple')}
+                                                    className={`flex items-center justify-center gap-2 p-3 rounded-xl bg-black text-white border border-border-divider font-bold text-sm hover:bg-gray-900 transition-colors active:scale-95 ${!shouldShowGoogleLogin() ? 'col-span-2' : ''}`}
+                                                >
+                                                    <AppleIcon />
+                                                    Apple
+                                                </button>
+                                            )}
+                                        </div>
+                                    </>
+                                )}
 
                                 <button
                                     type="button"
@@ -417,14 +459,14 @@ const RegisterScreen: React.FC = () => {
                                             setOtp(val);
                                             if (error) setError('');
                                         }}
-                                        length={CONFIG.OTP_LENGTH}
+                                        length={config.otpLength || 6}
                                     />
                                 </div>
 
                                 <div className="text-center">
                                     {resendTimer > 0 ? (
                                         <p className="text-sm text-text-secondary">
-                                            {t('resend_in')} <span className="font-mono font-bold text-text-primary">00:{resendTimer.toString().padStart(2, '0')}</span>
+                                            {t('resend_in')} <span className="font-mono font-bold text-text-primary">{formatTimer(resendTimer)}</span>
                                         </p>
                                     ) : (
                                         <div className="flex flex-col items-center gap-1">

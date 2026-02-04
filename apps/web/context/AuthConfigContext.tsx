@@ -17,6 +17,10 @@ interface AuthConfig {
   // Login Settings
   enableDirectLogin: boolean;
   enableOtpLogin: boolean;
+  otpExpirationMinutes: number;
+  otpLength: number;
+  maxOtpAttempts: number;
+  otpLockoutMinutes: number;
   
   // Password Policy
   minPasswordLength: number;
@@ -81,6 +85,10 @@ const defaultConfig: AuthConfig = {
   enableGoogleLogin: false,
   enableAppleLogin: false,
   enableFacebookLogin: false,
+  otpExpirationMinutes: 5,
+  otpLength: 6,
+  maxOtpAttempts: 5,
+  otpLockoutMinutes: 30,
   
   // Login Settings
   enableDirectLogin: true,
